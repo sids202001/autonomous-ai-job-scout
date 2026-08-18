@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AutoApply - Automated job search and application dashboard">
+    <title>AutoApply — Job Automation Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <h1 class="logo-text">AutoApply</h1>
+            </div>
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">☰</button>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#dashboard" class="nav-link active" data-view="dashboard">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Dashboard</span>
+            </a>
+            <a href="#profile" class="nav-link" data-view="profile">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Profile</span>
+            </a>
+            <a href="#jobs" class="nav-link" data-view="jobs">
+                <span class="nav-icon">🔍</span>
+                <span class="nav-label">Job Search</span>
+            </a>
+            <a href="#applications" class="nav-link" data-view="applications">
+                <span class="nav-icon">📋</span>
+                <span class="nav-label">Applications</span>
+            </a>
+            <a href="#filters" class="nav-link" data-view="filters">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Filters</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="version-badge">v1.0.0</div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="mainContent">
+
+        <!-- ═══ DASHBOARD VIEW ═══ -->
+        <section class="view active" id="view-dashboard">
+            <div class="view-header">
+                <h2 class="view-title">Dashboard</h2>
+                <button class="btn btn-primary btn-glow" id="dashSearchBtn">
+                    <span>🔍</span> Search New Jobs
+                </button>
+            </div>
+
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card stat-jobs">
+                    <div class="stat-icon">💼</div>
+                    <div class="stat-value" id="statTotalJobs">0</div>
+                    <div class="stat-label">Jobs Found</div>
+                </div>
+                <div class="stat-card stat-applied">
+                    <div class="stat-icon">📤</div>
+                    <div class="stat-value" id="statApplied">0</div>
+                    <div class="stat-label">Applied</div>
+                </div>
+                <div class="stat-card stat-interviews">
+                    <div class="stat-icon">🎯</div>
+                    <div class="stat-value" id="statInterviews">0</div>
+                    <div class="stat-label">Interviews</div>
+                </div>
+                <div class="stat-card stat-saved">
+                    <div class="stat-icon">⭐</div>
+                    <div class="stat-value" id="statSaved">0</div>
+                    <div class="stat-label">Saved</div>
+                </div>
+                <div class="stat-card stat-offers">
+                    <div class="stat-icon">🏆</div>
+                    <div class="stat-value" id="statOffers">0</div>
+                    <div class="stat-label">Offers</div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h3 class="section-title">Recent Jobs</h3>
+                <div class="table-container" id="recentJobsTable">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <h4>No jobs found yet</h4>
+                        <p>Create a filter and run your first search!</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ PROFILE VIEW ═══ -->
+        <section class="view" id="view-profile">
+            <div class="view-header">
+                <h2 class="view-title">Your Profile</h2>
+                <button class="btn btn-primary" id="saveProfileBtn">💾 Save Profile</button>
+            </div>
+
+            <div class="form-grid">
+                <div class="section-card">
+                    <h3 class="section-title">Personal Information</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fullName">Full Name *</label>
+                            <input type="text" id="fullName" placeholder="John Doe" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email *</label>
+                            <input type="email" id="email" placeholder="john@example.com" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="phone">Phone</label>
+                            <input type="tel" id="phone" placeholder="+1 (555) 123-4567">
+                        </div>
+                        <div class="form-group">
+                            <label for="location">Location</label>
+                            <input type="text" id="location" placeholder="San Francisco, CA">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="linkedin">LinkedIn URL</label>
+                            <input type="url" id="linkedin" placeholder="https://linkedin.com/in/yourname">
+                        </div>
+                        <div class="form-group">
+                            <label for="github">GitHub URL</label>
+                            <input type="url" id="github" placeholder="https://github.com/yourname">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="portfolio">Portfolio URL</label>
+                            <input type="url" id="portfolio" placeholder="https://yourportfolio.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="workAuth">Work Authorization</label>
+                            <select id="workAuth">
+                                <option value="">Select...</option>
+                                <option value="US Citizen">US Citizen</option>
+                                <option value="Green Card">Green Card</option>
+                                <option value="H1B">H1B Visa</option>
+                                <option value="OPT">OPT</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="salaryMin">Desired Salary (Min)</label>
+                            <input type="number" id="salaryMin" placeholder="80000">
+                        </div>
+                        <div class="form-group">
+                            <label for="salaryMax">Desired Salary (Max)</label>
+                            <input type="number" id="salaryMax" placeholder="150000">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="yearsExp">Years of Experience</label>
+                            <input type="number" id="yearsExp" placeholder="5" min="0" max="50">
+                        </div>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="summary">Professional Summary</label>
+                        <textarea id="summary" rows="4" placeholder="Brief professional summary..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Resume Upload & Path Selection -->
+                <div class="section-card">
+                    <h3 class="section-title">Resume & Auto-Filtering</h3>
+                    <div class="upload-area" id="resumeUpload">
+                        <div class="upload-icon">📄</div>
+                        <p>Drag & drop your resume or <label for="resumeFile" class="upload-link">browse</label></p>
+                        <p class="upload-hint">PDF format recommended</p>
+                        <input type="file" id="resumeFile" accept=".pdf,.doc,.docx" hidden>
+                    </div>
+                    <div class="resume-status" id="resumeStatus"></div>
+                    
+                    <div class="form-row" style="margin-top: 20px; align-items: flex-end;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="customResumePath">Enter Local Resume File Path</label>
+                            <input type="text" id="customResumePath" placeholder="/Users/siddheshsawant/Downloads/SiddheshSResume.pdf" value="/Users/siddheshsawant/Downloads/SiddheshSResume.pdf">
+                        </div>
+                        <button class="btn btn-primary btn-glow" id="btnParseResumePath">⚡ Parse & Filter Jobs</button>
+                    </div>
+                </div>
+
+                <!-- Skills -->
+                <div class="section-card">
+                    <h3 class="section-title">Skills</h3>
+                    <div class="tags-input-wrapper">
+                        <div class="tags-container" id="skillsTags"></div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <input type="text" id="newSkill" placeholder="Add a skill (e.g., Python)">
+                            </div>
+                            <div class="form-group">
+                                <select id="skillLevel">
+                                    <option value="Beginner">Beginner</option>
+                                    <option value="Intermediate" selected>Intermediate</option>
+                                    <option value="Advanced">Advanced</option>
+                                    <option value="Expert">Expert</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" id="addSkillBtn">+ Add</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Experience -->
+                <div class="section-card">
+                    <h3 class="section-title">Work Experience</h3>
+                    <div id="experienceList"></div>
+                    <button class="btn btn-secondary" id="addExpBtn">+ Add Experience</button>
+                </div>
+
+                <!-- Education -->
+                <div class="section-card">
+                    <h3 class="section-title">Education</h3>
+                    <div id="educationList"></div>
+                    <button class="btn btn-secondary" id="addEduBtn">+ Add Education</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ JOBS VIEW ═══ -->
+        <section class="view" id="view-jobs">
+            <div class="view-header">
+                <h2 class="view-title">Job Search</h2>
+                <div class="header-actions">
+                    <div class="search-bar">
+                        <input type="text" id="jobSearchInput" placeholder="Search jobs...">
+                    </div>
+                    <button class="btn btn-primary btn-glow" id="runSearchBtn">🔍 Run Search</button>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <select id="jobSortBy">
+                    <option value="match_score">Sort: Best Match</option>
+                    <option value="scraped_at">Sort: Newest</option>
+                    <option value="salary">Sort: Highest Salary</option>
+                </select>
+                <select id="jobSourceFilter">
+                    <option value="">All Sources</option>
+                    <option value="Google Jobs">Google Jobs</option>
+                    <option value="Indeed">Indeed</option>
+                    <option value="LinkedIn">LinkedIn</option>
+                    <option value="Glassdoor">Glassdoor</option>
+                </select>
+                <input type="number" id="minScoreFilter" placeholder="Min Score" min="0" max="100">
+            </div>
+
+            <div class="jobs-grid" id="jobsGrid">
+                <div class="empty-state">
+                    <div class="empty-icon">🌐</div>
+                    <h4>No jobs loaded</h4>
+                    <p>Set up your filters and click "Run Search" to find matching jobs.</p>
+                </div>
+            </div>
+
+            <div class="pagination" id="jobsPagination"></div>
+        </section>
+
+        <!-- ═══ APPLICATIONS VIEW ═══ -->
+        <section class="view" id="view-applications">
+            <div class="view-header">
+                <h2 class="view-title">My Applications</h2>
+            </div>
+
+            <div class="status-tabs" id="statusTabs">
+                <button class="tab active" data-status="">All</button>
+                <button class="tab" data-status="saved">⭐ Saved</button>
+                <button class="tab" data-status="applying">🔄 Applying</button>
+                <button class="tab" data-status="applied">✅ Applied</button>
+                <button class="tab" data-status="interview">🎯 Interview</button>
+                <button class="tab" data-status="offer">🏆 Offer</button>
+                <button class="tab" data-status="rejected">❌ Rejected</button>
+            </div>
+
+            <div class="applications-list" id="applicationsList">
+                <div class="empty-state">
+                    <div class="empty-icon">📋</div>
+                    <h4>No applications yet</h4>
+                    <p>Save or apply to jobs to track them here.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ FILTERS VIEW ═══ -->
+        <section class="view" id="view-filters">
+            <div class="view-header">
+                <h2 class="view-title">Job Filters</h2>
+                <button class="btn btn-primary" id="addFilterBtn">+ New Filter</button>
+            </div>
+
+            <div class="filters-grid" id="filtersGrid">
+                <div class="empty-state">
+                    <div class="empty-icon">⚙️</div>
+                    <h4>No filters created</h4>
+                    <p>Create a filter to start searching for jobs automatically.</p>
+                </div>
+            </div>
+
+            <!-- Filter Form Modal -->
+            <div class="modal-overlay" id="filterModal">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3 id="filterModalTitle">Create Filter</h3>
+                        <button class="modal-close" id="closeFilterModal">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="filterName">Filter Name</label>
+                            <input type="text" id="filterName" placeholder="e.g., Senior Python Remote">
+                        </div>
+                        <div class="form-group">
+                            <label for="filterKeywords">Role Keywords (comma-separated)</label>
+                            <input type="text" id="filterKeywords" placeholder="e.g., python, backend, data engineer">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="filterLocation">Location</label>
+                                <input type="text" id="filterLocation" placeholder="e.g., San Francisco, CA">
+                            </div>
+                            <div class="form-group">
+                                <label for="filterRemote">Remote Preference</label>
+                                <select id="filterRemote">
+                                    <option value="Any">Any</option>
+                                    <option value="Remote">Remote</option>
+                                    <option value="Hybrid">Hybrid</option>
+                                    <option value="Onsite">Onsite</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="filterMinSalary">Min Salary</label>
+                                <input type="number" id="filterMinSalary" placeholder="80000">
+                            </div>
+                            <div class="form-group">
+                                <label for="filterMaxSalary">Max Salary</label>
+                                <input type="number" id="filterMaxSalary" placeholder="200000">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="filterExpLevel">Experience Level</label>
+                                <select id="filterExpLevel">
+                                    <option value="">Any</option>
+                                    <option value="Entry">Entry Level</option>
+                                    <option value="Mid">Mid Level</option>
+                                    <option value="Senior">Senior</option>
+                                    <option value="Lead">Lead / Principal</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="filterJobType">Job Type</label>
+                                <select id="filterJobType">
+                                    <option value="Full-time">Full-time</option>
+                                    <option value="Contract">Contract</option>
+                                    <option value="Part-time">Part-time</option>
+                                    <option value="Any">Any</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="filterExcluded">Excluded Companies (comma-separated)</label>
+                            <input type="text" id="filterExcluded" placeholder="e.g., Company A, Company B">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" id="cancelFilterBtn">Cancel</button>
+                        <button class="btn btn-primary" id="saveFilterBtn">Save Filter</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Experience Form Modal -->
+        <div class="modal-overlay" id="expModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Add Experience</h3>
+                    <button class="modal-close" id="closeExpModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="expTitle">Job Title</label>
+                        <input type="text" id="expTitle" placeholder="Software Engineer">
+                    </div>
+                    <div class="form-group">
+                        <label for="expCompany">Company</label>
+                        <input type="text" id="expCompany" placeholder="Google">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="expStart">Start Date</label>
+                            <input type="text" id="expStart" placeholder="2020-01">
+                        </div>
+                        <div class="form-group">
+                            <label for="expEnd">End Date</label>
+                            <input type="text" id="expEnd" placeholder="2023-06 or leave empty if current">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="expLocation">Location</label>
+                        <input type="text" id="expLocation" placeholder="San Francisco, CA">
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="expCurrent"> Currently working here</label>
+                    </div>
+                    <div class="form-group">
+                        <label for="expDesc">Description</label>
+                        <textarea id="expDesc" rows="3" placeholder="Key responsibilities and achievements..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelExpBtn">Cancel</button>
+                    <button class="btn btn-primary" id="saveExpBtn">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Education Form Modal -->
+        <div class="modal-overlay" id="eduModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Add Education</h3>
+                    <button class="modal-close" id="closeEduModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="eduSchool">School</label>
+                        <input type="text" id="eduSchool" placeholder="Stanford University">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="eduDegree">Degree</label>
+                            <input type="text" id="eduDegree" placeholder="Bachelor of Science">
+                        </div>
+                        <div class="form-group">
+                            <label for="eduField">Field of Study</label>
+                            <input type="text" id="eduField" placeholder="Computer Science">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="eduStart">Start Date</label>
+                            <input type="text" id="eduStart" placeholder="2016-09">
+                        </div>
+                        <div class="form-group">
+                            <label for="eduEnd">End Date</label>
+                            <input type="text" id="eduEnd" placeholder="2020-06">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="eduGpa">GPA</label>
+                        <input type="number" id="eduGpa" step="0.01" placeholder="3.8" min="0" max="4.0">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelEduBtn">Cancel</button>
+                    <button class="btn btn-primary" id="saveEduBtn">Save</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader">
+            <div class="loader-dot"></div>
+            <div class="loader-dot"></div>
+            <div class="loader-dot"></div>
+        </div>
+        <p class="loader-text" id="loaderText">Loading...</p>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
