@@ -1,14 +1,10 @@
-# Autonomous AI Job Scout
+# Automated Job Application Engine
 
-A job hunting tool that searches for openings, scores them against your resume, and auto-fills application forms using Playwright — so you just review and hit submit.
+Job hunting in tech has become an exhausting, repetitive numbers game. Spending hours every day scrolling job boards, opening dozens of browser tabs, copy-pasting the same resume details into clunky ATS portals, and re-answering the exact same screening questions over and over again drains time that should be spent preparing for interviews. I built this autonomous AI job application engine to take over the entire application lifecycle on autopilot.
 
-### How It Works
-> **"Search once, match automatically, apply with one click."**
-> 
-> Job hunting is tedious. You scroll through listings, copy-paste the same info into a dozen forms, and lose track of where you applied. I built this to skip all that:
-> 1. **Set up your profile** — upload your resume, add your skills and experience, set your filters (keywords, location, salary range). Everything gets saved in a local SQLite database.
-> 2. **Smart matching** — hit "Search New Jobs" and the engine pulls listings, then scores each one from 0 to 100 based on how well it fits your skills, salary expectations, location, and experience level. Best matches float to the top.
-> 3. **Auto-fill and review** — pick a job, click "Auto-Fill & Apply." A real Chromium browser window opens up, navigates to the application, fills in your info, and then stops. It doesn't submit anything — you review first, then submit yourself.
+You give the system your resume, and it handles the rest: it automatically scrapes live software engineering openings across LinkedIn, Greenhouse, Lever, and Ashby, uses dynamic document parsing to extract your core technical skills, and filters out jobs that demand excessive experience or lack visa sponsorship. From there, an asynchronous browser agent launches real Chromium sessions to navigate the application pages, upload your resume, and fill out multi-step forms. When hit with unpredictable, open-ended screening prompts ("Why are you a fit for this role?", technical experience summaries, or custom questionnaire dropdowns), an integrated AI reasoning engine references your actual candidate background and dynamically synthesizes tailored, professional answers in real time—enforcing strict guardrails on work authorization and compensation to prevent any hallucinated answers. The system submits applications autonomously, records every entry in a local SQLite database, and broadcasts real-time status alerts to a Telegram channel, turning a grueling 20-minute manual application chore into a seamless background workflow that applies to targeted roles while you sleep.
+
+**Tech & Skills:** Autonomous AI Agents • Playwright Browser Automation • LLM Prompt Engineering & Guardrails • PyPDF2 • Python 3 • AsyncIO • SQLite • Telegram Bot API
 
 ---
 
