@@ -42,7 +42,7 @@ SENIOR_TITLE_PATTERNS = [
 # Forbidden domain keywords in titles
 FORBIDDEN_DOMAINS = [
     'mechanical', 'thermal', 'collision', 'physics', 'manufacturing',
-    'hardware', 'equipment', 'remanufacturing', 'materials', 'process',
+    'hardware', 'equipment', 'remanufacturing', 'materials',
     'civil', 'electrical', 'chemical',
 ]
 
@@ -70,53 +70,14 @@ class JobMatcher:
 
     def _check_visa_sponsorship(self, job: Job) -> tuple[bool, str]:
         """Check if job allows H-1B/visa sponsorship. Returns (passes, reason)."""
-        desc = (job.description or "").lower()
-        for pattern in NO_SPONSORSHIP_PATTERNS:
-            if re.search(pattern, desc):
-                return False, f"No visa sponsorship (matched: {pattern[:40]})"
+        # Disabled per user direction 2026-09-25: H-1B gate removed entirely; sponsorship language no longer blocks.
         return True, ""
 
     def _check_experience_level(self, job: Job) -> tuple[bool, str]:
-        """Check if job is appropriate for <=3 years experience. Returns (passes, reason)."""
-        title_lower = (job.title or "").lower()
-        desc_lower = (job.description or "").lower()
-
-        # Check senior title patterns
-        for pattern in SENIOR_TITLE_PATTERNS:
-            if re.search(pattern, title_lower):
-                return False, f"Senior-level title (matched: {pattern})"
-
-        # Check forbidden domains
-        for domain in FORBIDDEN_DOMAINS:
-            if domain in title_lower:
-                return False, f"Forbidden domain: {domain}"
-
-        # Check explicit year requirements > 3
-        exp_patterns = [
-            r'(\d+)\+?\s*(?:years?|yrs?)\s*(?:of)?\s*experience',
-            r'minimum\s+of\s+(\d+)\s+years?',
-            r'(\d+)\s+years?\s+of\s+(?:relevant|professional|work)?\s*experience',
-        ]
-        for pattern in exp_patterns:
-            match = re.search(pattern, desc_lower)
-            if match:
-                try:
-                    yrs = int(match.group(1))
-                    if yrs >= 4:
-                        return False, f"Requires {yrs}+ years of experience"
-                except (ValueError, IndexError):
-                    pass
-
-        # Check text-based year requirements
-        text_years = {
-            'four': 4, 'five': 5, 'six': 6, 'seven': 7,
-            'eight': 8, 'nine': 9, 'ten': 10
-        }
-        for word, val in text_years.items():
-            if re.search(rf'{word}\s+years?', desc_lower):
-                return False, f"Requires {val}+ years of experience"
-
-        return True, ""
+        """Check if job is appropriate for <=3 years experience using ExperienceGate. Returns (passes, reason)."""
+        from app.services.experience_gate import ExperienceGate
+        passes, reason, _ = ExperienceGate.evaluate(job.title or "", job.description or "")
+        return passes, reason
 
     # ── Scoring Components ───────────────────────────────────────────────
 
@@ -264,9 +225,17 @@ class JobMatcher:
         # Hard filters first
         visa_ok = self._check_visa_sponsorship(job)
         exp_ok = self._check_experience_level(job)
+        from app.services.relevance_gate import RelevanceGate
+        rel_ok, rel_reason, _ = RelevanceGate.evaluate(job.title or "", job.description or "")
 
-        if not visa_ok[0] or not exp_ok[0]:
-            reasons = self._generate_match_reasons(job, [], 0, 0, 0, 0, 0, 0, visa_ok, exp_ok)
+        if not visa_ok[0] or not exp_ok[0] or not rel_ok:
+            reasons = []
+            if not visa_ok[0]:
+                reasons.append(f"❌ {visa_ok[1]}")
+            if not exp_ok[0]:
+                reasons.append(f"❌ {exp_ok[1]}")
+            if not rel_ok:
+                reasons.append(f"❌ {rel_reason}")
             return 0.0, reasons
 
         # Calculate component scores

@@ -6,7 +6,7 @@ import os
 import json
 import logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
@@ -140,7 +140,7 @@ async def delete_application(app_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/{app_id}/autofill")
 async def trigger_autofill(
     app_id: int,
-    mode: str = Query("review", description="Application mode: 'review', 'auto_submit', or 'batch'"),
+    mode: str = Query(None, description="Application mode: 'review', 'auto_submit', or 'batch'"),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -150,6 +150,9 @@ async def trigger_autofill(
         - 'auto_submit': Fills form, screenshots, submits, logs result, closes
         - 'batch': Used for automated queue processing
     """
+    from config import settings
+    if mode is None:
+        mode = 'auto_submit' if settings.AUTO_SUBMIT else 'review'
     result = await db.execute(
         select(Application).options(selectinload(Application.job)).where(Application.id == app_id)
     )
@@ -168,7 +171,16 @@ async def trigger_autofill(
     await db.flush()
 
     import asyncio
-    asyncio.create_task(auto_filler.open_and_prefill(app.job.url, profile, mode=mode))
+    asyncio.create_task(
+        auto_filler.open_and_prefill(
+            app.job.url,
+            profile,
+            mode=mode,
+            job_title=getattr(app.job, "title", None),
+            job_description=getattr(app.job, "description", None),
+            company=getattr(app.job, "company", None)
+        )
+    )
 
     return {
         "message": f"🚀 Browser opening in '{mode}' mode! Pre-filling form with your profile data.",
@@ -203,13 +215,32 @@ async def batch_apply(request: BatchApplyRequest, db: AsyncSession = Depends(get
 
     import asyncio
     async def process_batch():
+        from app.services.politeness import politeness
+        from config import settings
         for job_id in request.job_ids:
+            if not politeness.can_apply_today():
+                logger.info("Daily application limit reached. Stopping batch.")
+                break
+            if not politeness.within_active_hours():
+                logger.info("Outside active hours. Stopping batch.")
+                break
             from app.database import async_session
             async with async_session() as session:
                 job = (await session.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
                 if job:
-                    await auto_filler.open_and_prefill(job.url, profile, mode="batch")
-                    await asyncio.sleep(5)
+                    if settings.DRY_RUN:
+                        logger.info(f"DRY RUN: Would have applied to {job.title} at {job.url}")
+                    else:
+                        await auto_filler.open_and_prefill(
+                            job.url,
+                            profile,
+                            mode="batch",
+                            job_title=job.title,
+                            job_description=job.description,
+                            company=job.company
+                        )
+                        politeness.record_application()
+                    await politeness.pace_between_applications()
 
     asyncio.create_task(process_batch())
     return {"message": f"Batch application started for {len(results)} jobs.", "jobs": results}

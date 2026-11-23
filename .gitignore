@@ -1,9 +1,29 @@
+# Secrets & local configuration
 .env
+credentials.json
+token.json
+profile.json
+
+# SQLite databases & backups
 *.db
+*.db.*
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Runtime data, logs, and browser state
 data/resumes/
 data/screenshots/
 data/browser_state/
+data/*.log
+data/*.json
+data/*.jsonl
+acceptance_audit_results.json
+addendum_live_run_results.json
+
+# Python / IDE / OS
 __pycache__/
 venv/
 *.pyc
+.pytest_cache/
 .DS_Store

@@ -7,8 +7,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+import sys
 from app.database import init_db
 from config import settings
+
+# Support --dry-run CLI argument
+if "--dry-run" in sys.argv:
+    settings.DRY_RUN = True
 
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
