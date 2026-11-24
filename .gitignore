@@ -3,6 +3,7 @@
 credentials.json
 token.json
 profile.json
+resume_bot.py
 
 # SQLite databases & backups
 *.db

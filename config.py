@@ -130,7 +130,7 @@ class Settings:
 
 settings = Settings()
 
-# Universal COMMON_FIELDS Registry mapping concepts across Lever, Greenhouse, Ashby, LinkedIn
+# Universal COMMON_FIELDS Registry mapping concepts across Lever, Greenhouse, Ashby
 COMMON_FIELDS = {
     "years_of_experience": {
         "patterns": [

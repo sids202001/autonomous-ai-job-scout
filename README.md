@@ -42,7 +42,7 @@ Instead of scraping third-party aggregators or firing unverified LLM guesses int
   │    │  Greenhouse   │      │     Ashby     │      │     Lever     │        │
   │    │   Board API   │      │  Posting API  │      │  Postings API │        │
   │    └───────┬───────┘      └───────┬───────┘      └───────┬───────┘        │
-  │       (No LinkedIn, no third-party aggregators, <= 10 req/min/ATS)        │
+  │        (Official ATS APIs only, no third-party aggregators, <= 10 req/min) │
   └────────────┼──────────────────────┼──────────────────────┼────────────────┘
                └──────────────────────┼──────────────────────┘
                                       ▼
@@ -101,7 +101,7 @@ Discovery and enumeration (`app/services/discovery_engine.py`, `app/services/job
 | **Ashby** | `api.ashbyhq.com/posting-api/job-board/<slug>` | 10 req/min |
 | **Lever** | `api.lever.co/v0/postings/<slug>` | 10 req/min |
 
-- **LinkedIn is explicitly excluded** from scraping, discovery, and referral-source answers.
+- Only official **Greenhouse**, **Ashby**, and **Lever** ATS APIs are used for discovery, scraping, and application.
 - Non-Greenhouse/Ashby/Lever portals are classified unsupported once and skipped.
 
 ---
@@ -114,7 +114,7 @@ Core rules enforced by `form_filler.py` and `app/services/form_guards.py`:
 
 - **Clear-Before-Fill & Read-Back Verification**: Every input is cleared before filling and read back to confirm exact match; mismatches raise `FILL_VERIFICATION_FAILED`.
 - **Visa Support & Sponsorship Mapping**: Any phrasing of sponsorship, visa support, visa assistance, or immigration sponsorship resolves canonically (`Yes` -> `H-1B`, with `F-1 OPT (STEM Eligible)` for status details). Missing visa options halt with `VISA_OPTION_MISSING`.
-- **Referral Source ("How did you hear?")**: Always prefers `Company Website` / careers page — **never** selects LinkedIn. If no valid source exists, halts with `SOURCE_OPTION_MISSING`.
+- **Referral Source ("How did you hear?")**: Always prefers `Company Website` / careers page. If no valid source exists, halts with `SOURCE_OPTION_MISSING`.
 - **Relocation & Proximity**: Answers current-location proximity strictly from the candidate's canonical location and relocation willingness from `profile.json`, halting on ambiguous relocation timing or assistance prompts.
 - **Start Date & Compensation**: Computes start dates dynamically (`submit_date + 1 month`) and pulls salary/hourly expectations strictly from `profile.json`.
 - **Screening Canonical Answers**: Explicit `screening_canonical` entries in `profile.json` govern recurring company/domain questions (prior employer history, travel willingness, authorization expiration, spoken languages, EEO, etc.).
@@ -146,7 +146,7 @@ Before any submit button is clicked, the engine extracts every visible form fiel
 1. **Deterministic Checklist (`run_presubmit_review`)**:
    - Rejects raw HTML default `"on"` values (forces visible label read-back).
    - Rejects blank/placeholder required fields and unselected Yes/No toggles.
-   - Verifies GitHub/LinkedIn URLs, home address, location, work authorization, visa sponsorship/type, referral source, salary, start date, education months & years, EEO consistency (preventing cross-field leakage), and banned boilerplate prose.
+   - Verifies profile/GitHub/portfolio URLs, home address, location, work authorization, visa sponsorship/type, referral source, salary, start date, education months & years, EEO consistency (preventing cross-field leakage), and banned boilerplate prose.
    - Verifies open-text answers against the grounded fact bank.
 2. **Judge-Only LLM Verifier (`llm_judge_fields_against_record`)**:
    - Audits every filled field against `profile.json`, resume text, and essay grounding sources.

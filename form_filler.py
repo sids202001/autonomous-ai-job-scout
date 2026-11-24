@@ -2758,7 +2758,7 @@ class DeterministicEngine:
 
         # Conditional Follow-ups: Referral / Employee / Other / Conference / Event Specification
         if re.search(r"(if\s*you\s*(chose|selected).*specify|if\s*other.*(specify|explain|describe)|if\s*referr.*(who|name|specify|list)|who\s*referred\s*you|employee\s*referr.*name|name\s*of\s*(the\s*)?referr|former\s*employee.*name|referred\s*by\s*an\s*employee)", q, re.IGNORECASE):
-            # Candidate applied independently via LinkedIn and has no referral from an employee, conference, or 'Other'
+            # Candidate applied independently via official ATS board and has no referral from an employee, conference, or 'Other'
             return "N/A"
 
         # --- Core Candidate Identifiers & Contact Details ---
