@@ -16,10 +16,35 @@ Strict, deterministic policy layer enforcing:
 
 import re
 import os
+import json
 import logging
 from typing import Optional, List, Dict, Any, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+def _load_profile_safe() -> Dict[str, Any]:
+    """Load canonical profile.json without crashing if unavailable in isolated unit tests."""
+    try:
+        from app.services.profile_verifier import load_canonical_profile
+        prof = load_canonical_profile()
+        if isinstance(prof, dict) and prof:
+            return prof
+    except Exception:
+        pass
+    try:
+        root_profile = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "profile.json",
+        )
+        if os.path.exists(root_profile):
+            with open(root_profile, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
 
 
 # ============================================================================
@@ -195,10 +220,386 @@ def is_travel_decision_question(question: str) -> bool:
     return False
 
 
+def _pick_choice_no(question: str, choices: Optional[List[str]] = None) -> str:
+    if choices:
+        for c in choices:
+            c_s = str(c).strip()
+            if re.match(r"^(?:no|false)\b", c_s, re.IGNORECASE) and not re.search(r"\byes\b", c_s, re.IGNORECASE):
+                return c_s
+        for c in choices:
+            c_s = str(c).strip()
+            if re.search(r"own\s+expense|without\s+assistance|do\s+not\s+require", c_s, re.IGNORECASE):
+                return c_s
+        for c in choices:
+            c_s = str(c).strip()
+            if re.match(r"^(?:not\s+yet|haven'?t|i\s+haven'?t|have\s+not|i\s+have\s+not|not\s+started)\b", c_s, re.IGNORECASE):
+                return c_s
+        raise FormHaltException(
+            "UNMAPPED_SCREENING_QUESTION",
+            f"Canonical answer is 'No' for '{question}', but no 'No' option was found among {choices}.",
+            question=question,
+            choices=choices,
+        )
+    return "No"
+
+
+def _pick_choice_yes(question: str, choices: Optional[List[str]] = None) -> str:
+    if choices:
+        for c in choices:
+            c_s = str(c).strip()
+            if re.match(r"^(?:yes|true)\b", c_s, re.IGNORECASE) and not re.search(r"\bno\b", c_s, re.IGNORECASE):
+                return c_s
+        raise FormHaltException(
+            "UNMAPPED_SCREENING_QUESTION",
+            f"Canonical answer is 'Yes' for '{question}', but no 'Yes' option was found among {choices}.",
+            question=question,
+            choices=choices,
+        )
+    return "Yes"
+
+
+def _has_boolean_choices(choices: Optional[List[str]]) -> bool:
+    if not choices:
+        return True
+    has_yes = any(re.match(r"^(?:yes|true)\b", str(c).strip(), re.IGNORECASE) for c in choices)
+    has_no = any(
+        re.match(r"^(?:no|false|not\s+yet|i\s+have\s+not|haven'?t)\b", str(c).strip(), re.IGNORECASE)
+        for c in choices
+    )
+    return has_yes or has_no
+
+
+def _build_candidate_school_aliases(education: List[Dict[str, Any]]) -> List[Tuple[set, bool]]:
+    """Return list of (alias_set, is_current) built dynamically from profile.json['education']."""
+    stop = {"of", "the", "at", "in", "for", "and", "&"}
+    entries: List[Tuple[set, bool]] = []
+    for edu in education or []:
+        if not isinstance(edu, dict):
+            continue
+        school = str(edu.get("school") or "").strip()
+        if not school:
+            continue
+        s_low = school.lower()
+        aliases = {s_low}
+        # Strip leading "university of " or trailing " university" / " college" / " institute"
+        core = re.sub(r"^(?:the\s+)?university\s+of\s+", "", s_low).strip()
+        core = re.sub(r"\s+(?:university|college|institute(?:\s+of\s+technology)?)$", "", core).strip()
+        if core and len(core) >= 3:
+            aliases.add(core)
+        if "university of " in s_low:
+            aliases.add(f"{core} university")
+        words = [w for w in re.findall(r"[a-z]+", s_low) if w not in stop]
+        if len(words) >= 2:
+            acronym = "".join(w[0] for w in words)
+            if len(acronym) >= 2:
+                aliases.add(acronym)
+        entries.append((aliases, bool(edu.get("is_current", False))))
+    return entries
+
+
+_GENERIC_SCHOOL_PHRASES = {
+    "university", "college", "school", "institution", "program", "degree",
+    "engineering", "engineering program", "computer science", "information systems",
+    "information technology", "data science", "software engineering", "stem",
+    "accredited university", "accredited college", "accredited institution",
+    "4 year university", "four year university", "4 year college", "four year college",
+    "recognized university", "us university", "u s university", "united states",
+    "bachelor", "bachelors", "master", "masters", "graduate", "undergraduate",
+    "phd", "doctorate", "high school", "secondary school",
+}
+
+
+def solve_education_enrollment_question(
+    question: str,
+    choices: Optional[List[str]] = None,
+    profile: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """
+    General education / enrollment / school-specific yes-no rule driven by profile.json['education']
+    and profile.json['screening_canonical']['currently_pursuing_degree'].
+    - Current enrollment / about to graduate / pursuing a degree -> No (unless profile shows is_current=True).
+    - School-specific enrollment/attendance/graduation/alumni questions (ANY university or program):
+      - If named school/program is NOT in candidate's education record -> No.
+      - If named school/program IS in candidate's education record:
+        - Current enrollment / about to graduate -> Yes iff is_current else No.
+        - Past attendance / graduation / alumni -> Yes.
+    """
+    if not question:
+        return None
+    q = question.strip()
+    q_low = q.lower()
+
+    # Never hijack date/year/free-text school-name questions
+    if re.search(r"^\s*(?:when|what\s+year|which\s+(?:school|university|college|institution|degree|major)|what\s+(?:school|university|college|institution|degree|major)|name\s+of\s+(?:your\s+)?(?:school|university|college))\b", q_low):
+        return None
+    if choices and not _has_boolean_choices(choices):
+        return None
+
+    prof = profile if isinstance(profile, dict) else _load_profile_safe()
+    edu_list = prof.get("education") or []
+    sc = prof.get("screening_canonical") or {}
+    is_currently_enrolled = any(isinstance(e, dict) and bool(e.get("is_current", False)) for e in edu_list)
+    pursuing_raw = str(sc.get("currently_pursuing_degree", "No")).strip().lower()
+    is_pursuing = is_currently_enrolled or pursuing_raw in ("yes", "true", "1")
+
+    # 1. General current-enrollment / about-to-graduate / currently-pursuing-degree check
+    current_enrollment_patterns = [
+        r"\b(?:currently|presently)\s+(?:enrolled|attending|pursuing|studying)\b",
+        r"\babout\s+to\s+graduate\b",
+        r"\b(?:are\s+you|will\s+you\s+be)\s+(?:a\s+)?(?:current(?:ly)?\s+)?(?:enrolled\s+)?(?:student|undergrad(?:uate)?|grad(?:uate)?\s+student)\b",
+        r"\b(?:are\s+you|will\s+you\s+be)\s+(?:currently\s+)?graduating\s+(?:soon|in\s+20\d{2}|this\s+year|next\s+year|from)\b",
+        r"\bcurrently\s+(?:in\s+school|completing\s+(?:a|an|your)\s+degree|working\s+towards?\s+(?:a|an|your)\s+degree)\b",
+        r"\b(?:are\s+you\s+)?pursuing\s+(?:a|an|your)\s+(?:bachelor|master|phd|doctorate|degree|undergraduate|graduate)\b",
+        r"\bexpect(?:ing|ed)?\s+to\s+graduate\s+(?:in|by|before|between)\b",
+    ]
+    is_current_q = any(re.search(p, q_low, re.IGNORECASE) for p in current_enrollment_patterns)
+    if is_current_q:
+        return _pick_choice_yes(q, choices) if is_pursuing else _pick_choice_no(q, choices)
+
+    # 2. School / University / Program-specific yes/no questions (past or general)
+    is_yesno_framing = bool(
+        re.search(r"\b(?:are\s+you|were\s+you|did\s+you|have\s+you|do\s+you|will\s+you)\b", q_low)
+        or (choices and _has_boolean_choices(choices))
+    )
+    has_academic_cue = bool(
+        re.search(
+            r"\b(?:enrolled|attend(?:ed|ing)?|graduat(?:e|ed|ing)\s+(?:from|of)|"
+            r"alumn(?:us|a|i)|student\s+(?:at|in|of)|degree\s+from|"
+            r"engineering\s+program|computer\s+science\s+program|fellowship\s+at|"
+            r"program\s+at|stud(?:y|ied|ying)\s+at|affiliated\s+with\s+(?:[\w\s]{0,30})?(?:university|college|institute|school))\b",
+            q_low,
+        )
+    )
+    if not (is_yesno_framing and has_academic_cue):
+        return None
+
+    # Extract named school/program phrase(s) from the original-case question
+    named_candidates: List[str] = []
+    # Pattern A: preposition + optional article + capitalized proper-noun institution/program phrase
+    for m in re.finditer(
+        r"\b(?:at|from|of|in)\s+(?:the\s+|a\s+|an\s+)?"
+        r"([A-Z][A-Za-z0-9&.'\-]+(?:\s+(?:of|for|at|in|the|&|[A-Z][A-Za-z0-9&.'\-]+)){0,6})",
+        q,
+    ):
+        named_candidates.append(m.group(1).strip(" ?,.:;()\"'"))
+    # Pattern B: "attended <Proper Noun>" / "attend <Proper Noun>"
+    for m in re.finditer(
+        r"\battend(?:ed|ing)?\s+(?:the\s+|a\s+|an\s+)?"
+        r"([A-Z][A-Za-z0-9&.'\-]+(?:\s+(?:of|for|at|in|the|&|[A-Z][A-Za-z0-9&.'\-]+)){0,6})",
+        q,
+    ):
+        named_candidates.append(m.group(1).strip(" ?,.:;()\"'"))
+
+    # Filter out generic / non-specific phrases (e.g. "United States", "Computer Science", "Accredited University")
+    specific_schools: List[str] = []
+    for cand in named_candidates:
+        norm = re.sub(r"[^a-z0-9\s]", " ", cand.lower())
+        norm = re.sub(r"\s+", " ", norm).strip()
+        if not norm or norm in _GENERIC_SCHOOL_PHRASES:
+            continue
+        # Skip generic "accredited ... university" or "4-year ... college"
+        if re.search(r"\b(?:accredited|recognized|four[- ]year|4[- ]year|us|u\.s\.)\b", norm):
+            continue
+        # Require either an academic suffix, an acronym/school token (e.g. UPenn, MIT, CMU, NYU, UC ...),
+        # or explicit "university/college/institute/school/program" context
+        has_school_signal = bool(
+            re.search(r"\b(?:university|college|institute|school|tech|polytechnic|academy|program)\b", norm)
+            or re.search(r"\b(?:upenn|penn|mit|cmu|nyu|ucla|usc|ucsd|ucsb|uiuc|umich|caltech|stanford|harvard|yale|princeton|columbia|cornell|berkeley|brown|dartmouth|duke|northwestern|waterloo|gmu|mumbai|ut|uw|eth|iit)\b", norm)
+            or re.match(r"^[A-Z]{2,6}\b", cand)
+            or re.match(r"^U[A-Z][a-z]+", cand)
+        )
+        if has_school_signal:
+            specific_schools.append(norm)
+
+    if not specific_schools:
+        return None
+
+    school_aliases = _build_candidate_school_aliases(edu_list)
+    for spec in specific_schools:
+        for aliases, is_curr in school_aliases:
+            for alias in aliases:
+                if alias == spec or re.search(rf"(?:^|\b){re.escape(alias)}(?:\b|$)", spec):
+                    return _pick_choice_yes(q, choices)
+
+    # Specific school/program named, and it is NOT in candidate's education record -> No
+    return _pick_choice_no(q, choices)
+
+
+# ============================================================================
+# Unified Conditional Follow-Up Matcher & Solver (Not-Applicable / False Parent)
+# ============================================================================
+
+# Exclusions: conditional-looking questions whose condition IS TRUE or handled by a specific canonical rule
+_CONDITIONAL_EXCLUSION_PATTERNS = [
+    r"work\s*authorization.*expir|authorization\s*expir|opt.*expir",
+    r"relocation\s+assistance\s+if",
+    r"(?:willing|open|able)\s+to\s+relocate",
+    r"if\s+this\s+position\s+is\s+located",
+    r"if\s+you\s+selected\s+[\"']?(?:a\s+protected\s+individual|other)[\"']?.*(?:citizenship|visa|above|question)",
+    r"state\s+your\s+current\s+citizenship.*visa",
+    r"if\s+you\s+(?:selected|chose|are)\s+international",
+]
+
+# Explicit false-condition follow-up patterns (candidate is NOT a referral, NOT a veteran,
+# NOT disabled, NOT terminated, NOT a former employee/relative/non-compete/criminal, etc.)
+CONDITIONAL_FOLLOWUP_PATTERNS = [
+    # Referral / referrer follow-ups (candidate NEVER applies via employee referral)
+    r"\bif\s+(?:you\s+)?(?:are|were)\s+(?:a\s+)?referr",
+    r"\bif\s+referr(?:al|ed)\b",
+    r"\bwho\s+referred\s+you\b",
+    r"\b(?:employee|internal|staff|team)\s+referr(?:al|er)\s*(?:name|email|details|info)\b",
+    r"\bname\s+of\s+(?:the\s+|your\s+)?referr(?:al|er|ing\s+(?:employee|person|contact))\b",
+    r"\breferr(?:er|al)'?s?\s+(?:full\s+)?(?:name|email)\b",
+    r"\breferred\s+by\s+(?:an?\s+employee|whom|who)\b",
+    r"\bplease\s+(?:mention|enter|provide|list|share|specify|state|include)\s+(?:the\s+|their\s+|your\s+)?referr(?:al|er)(?:'s)?\s*(?:name|email)?\b",
+    r"\bformer\s+employee\b.*name",
+    # Veteran / military branch follow-ups (candidate is not a veteran)
+    r"\bif\s+(?:you\s+are\s+(?:a\s+)?)?veteran\b.*(?:specify|branch|discharge|rank|dates?|explain|provide)",
+    r"\bmilitary\s+branch\b.*if\s+applicable",
+    r"\bmilitary\s+discharge\s+status\b",
+    # Disability accommodation follow-ups (candidate has no disability)
+    r"\bif\s+yes,?\s*(?:please\s*)?(?:describe|explain|specify|provide|list).*accommodation",
+    r"\bnature\s+of\s+disability\b",
+    # Terminated / fired / disciplinary / criminal / non-compete / conflict / relative follow-ups
+    r"\bif\s+(?:you\s+(?:have\s+)?(?:ever\s+)?been\s+)?(?:terminated|fired|dismissed|asked\s+to\s+resign|disciplined|convicted)\b",
+    r"\bif\s+(?:you\s+)?(?:have\s+)?(?:a\s+)?(?:relative|family\s+member|conflict\s+of\s+interest|non-?compete|security\s+clearance|previously\s+(?:worked|been\s+employed))\b.*(?:name|explain|specify|detail|describe|list|provide|mention|company|when|department)",
+    # Generic conditional follow-ups ("If yes, please...", "If you chose X, please specify...", "If other, please specify...")
+    r"^\s*if\s+(?:yes|so|applicable)\b",
+    r"\bif\s+you\s+answered\s+[\"']?yes[\"']?\b",
+    r"\bplease\s+(?:explain|specify|describe|provide|detail|list|mention|tell)\s+if\s+(?:yes|applicable|so)\b",
+    r"\bif\s+(?:you\s+)?(?:chose|selected|checked)\b.*(?:specify|explain|describe|mention|name|list|provide|detail|tell)",
+    r"\bif\s+other,?\s*(?:please\s*)?(?:specify|explain|describe|mention|enter|provide|tell)",
+]
+
+# Standalone core profile fields that must NEVER be treated as a parent-dependent N/A follow-up
+_CORE_STANDALONE_FIELD_RE = re.compile(
+    r"\b(?:first\s*name|last\s*name|full\s*name|legal\s*name|preferred\s*name|email|phone|mobile|cell|"
+    r"address|city|state|zip|postal|country|location|linkedin|github|portfolio|website|"
+    r"current\s*(?:company|employer|title|role|position)|most\s*recent\s*(?:company|employer|title)|"
+    r"school|university|college|degree|major|discipline|gpa|graduation|"
+    r"salary|compensation|hourly|start\s*date|notice\s*period|"
+    r"authorized\s*to\s*work|work\s*authorization|sponsorship|visa|"
+    r"gender|race|ethnicity|veteran\s*status|disability\s*status|sexual\s*orientation|pronouns|hispanic|latino)\b",
+    re.IGNORECASE,
+)
+
+# Short follow-up prompt cues when paired with a negative parent answer
+_DEPENDENT_FOLLOWUP_CUE_RE = re.compile(
+    r"(?:^\s*please\s+(?:tell|explain|specify|provide|list|mention|describe|state|enter|share|indicate|elaborate)\b|"
+    r"\b(?:tell|provide|enter|mention|list|specify|state)\s+(?:the\s+|their\s+|your\s+)?(?:company\s*name|employer\s*name|name|details|reason|dates?|relationship|branch)\b|"
+    r"^\s*(?:company\s*name|employer\s*name|which\s*company|who|their\s*name|name\s*of\s*company|details|explanation|reason|if\s*yes|if\s*so|if\s*applicable)\s*[?:.]*\s*$)",
+    re.IGNORECASE,
+)
+
+_NEGATIVE_PARENT_ANSWER_RE = re.compile(
+    r"^(?:no|false|never|none|n/a|not\s+applicable|i\s+(?:am|have)\s+not|no,)\b",
+    re.IGNORECASE,
+)
+
+
+def is_conditional_followup_question(
+    question: str,
+    parent_question: Optional[str] = None,
+    parent_answer: Optional[str] = None,
+) -> bool:
+    """
+    General detector for conditional follow-up fields whose parent condition does NOT apply to the candidate.
+    Works both statelessly (from the question text itself) and contextually (from the immediately preceding
+    parent question + answer on the same form, e.g. 'Have you ever been terminated?' -> 'No', followed by
+    'Please tell company name').
+    """
+    if not question:
+        return False
+    q = question.strip()
+    q_low = q.lower()
+
+    # Never hijack "How did you hear / referral source" (Rule 9)
+    if is_how_did_you_hear_question(q):
+        return False
+
+    # Never hijack exclusions (work auth expiration, relocation willingness, export control citizenship, Rule 7 international)
+    if any(re.search(pat, q_low, re.IGNORECASE) for pat in _CONDITIONAL_EXCLUSION_PATTERNS):
+        return False
+
+    # Never treat sponsorship/visa detail follow-up as false condition (candidate DOES require sponsorship!)
+    if re.search(r"\b(?:sponsorship|visa)\b", q_low) and re.search(r"\bif\s+(?:yes|you\s+(?:require|need|will\s+require))\b", q_low):
+        return False
+
+    # 1. Stateless conditional follow-up match
+    if any(re.search(pat, q_low, re.IGNORECASE) for pat in CONDITIONAL_FOLLOWUP_PATTERNS):
+        return True
+
+    # 2. Context-aware parent-question match (e.g., parent "Have you ever been terminated?" -> "No",
+    #    follow-up "Please tell company name")
+    if parent_question and parent_answer is not None:
+        pa = str(parent_answer).strip()
+        pq_low = str(parent_question).strip().lower()
+        parent_is_negative = bool(_NEGATIVE_PARENT_ANSWER_RE.match(pa))
+        parent_is_non_referral_source = (
+            is_how_did_you_hear_question(parent_question)
+            and "referral" not in pa.lower()
+            and "employee" not in pa.lower()
+        )
+        if (parent_is_negative or parent_is_non_referral_source) and not _CORE_STANDALONE_FIELD_RE.search(q_low):
+            if _DEPENDENT_FOLLOWUP_CUE_RE.search(q_low):
+                return True
+            if parent_is_non_referral_source and re.search(r"\breferr(?:al|er)\b|\btheir\s+name\b", q_low):
+                return True
+            if parent_is_negative and re.search(r"(?:terminat|fired|dismiss|disciplin|convict|non-?compet|conflict|relative|clearance|veteran|disabilit|previously\s+(?:employed|worked))", pq_low):
+                if len(q_low) <= 120 and re.search(r"\b(?:company|employer|name|explain|detail|reason|specify|when|date|who|which|describe|provide|tell|list|mention)\b", q_low):
+                    return True
+
+    return False
+
+
+def solve_conditional_followup(
+    question: str,
+    choices: Optional[List[str]] = None,
+    is_required: bool = True,
+    parent_question: Optional[str] = None,
+    parent_answer: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Resolves conditional follow-up fields whose parent condition is false/not-applicable:
+    - Optional (no asterisk): return "" (leave blank / skip).
+    - Required (with asterisk): return "N/A" (or matching N/A / Not applicable / None option if choices exist).
+    Never halts.
+    """
+    if not question:
+        return None
+    q_low = question.strip().lower()
+
+    # Special positive conditional: sponsorship detail ("If yes, please explain your sponsorship/visa needs")
+    if (
+        re.search(r"\b(?:sponsorship|visa)\b", q_low)
+        and re.search(r"\bif\s+(?:yes|you\s+(?:require|need|will\s+require))\b", q_low)
+        and not choices
+    ):
+        prof = _load_profile_safe()
+        sc = prof.get("screening_canonical") or {}
+        return str(sc.get("sponsorship_detail") or "F-1 OPT STEM; will require H-1B sponsorship in the future.")
+
+    if not is_conditional_followup_question(question, parent_question=parent_question, parent_answer=parent_answer):
+        return None
+
+    if not is_required:
+        return ""
+
+    if choices:
+        for pat in (r"^n/?a$", r"not\s+applicable", r"none\s+of\s+the\s+above", r"^none$", r"^no\b"):
+            for c in choices:
+                c_s = str(c).strip()
+                if re.search(pat, c_s, re.IGNORECASE):
+                    return c_s
+    return "N/A"
+
+
 def solve_canonical_screening_question(
     question: str,
     choices: Optional[List[str]] = None,
     is_required: bool = True,
+    parent_question: Optional[str] = None,
+    parent_answer: Optional[str] = None,
 ) -> Optional[str]:
     """
     R9 canonical screening answers from Siddhesh's record (profile.json, updated Nov 22):
@@ -372,6 +773,23 @@ def solve_canonical_screening_question(
         return _pick_yes()
     if re.search(r"legal\s+rights?\s+to\s+work\s+in\s+(?:the\s+)?(?:united\s+states|u\.?s\.?a?\.?)\b", q_low):
         return _pick_yes()
+
+    # 4c. Education / current enrollment / school-specific yes-no questions (driven by profile.json['education'])
+    edu_ans = solve_education_enrollment_question(q, choices)
+    if edu_ans is not None:
+        return edu_ans
+
+    # 4d. Conditional follow-up fields whose parent condition is false/not-applicable
+    #     (optional -> "" / skip; required -> "N/A"; never halts)
+    cond_ans = solve_conditional_followup(
+        q,
+        choices,
+        is_required=is_required,
+        parent_question=parent_question,
+        parent_answer=parent_answer,
+    )
+    if cond_ans is not None:
+        return cond_ans
 
     # 5. HRIS/ATS extraction or GCP production checkboxes -> 'None of the above' if offered, else HALT
     if re.search(r"(?:hris|ats\s*data|workday.*greenhouse|gcp\s*(?:production|experience|tools|bigquery))", q_low):
@@ -682,25 +1100,10 @@ def is_essay_or_subjective_question(question: str) -> bool:
 # ============================================================================
 
 CONTRADICTORY_PREMISE_PATTERNS = [
-    # International follow-up when candidate is US-based
+    # International follow-up when candidate is US-based (Rule 7 safe-halt on required)
     r"if\s*you\s*(?:selected|chose|are)\s*international",
     r"international\s*location\(?s?\)?",
     r"locations?\s*outside\s*(?:of\s*)?(?:the\s*)?u\.?s\.?",
-
-    # Veteran follow-up when candidate is not a veteran
-    r"if\s*(?:you\s*are\s*a\s*)?veteran.*(?:specify|branch|discharge|rank)",
-    r"military\s*branch.*if\s*applicable",
-    r"military\s*discharge\s*status",
-
-    # Disability accommodation follow-up when candidate has no disability
-    r"if\s*yes,?\s*(?:please\s*)?describe.*accommodation",
-    r"nature\s*of\s*disability.*accommodation",
-
-    # Referral follow-up when candidate applied independently
-    r"if\s*(?:you\s*were\s*)?referred.*(?:who|name|specify|list)",
-    r"employee\s*referral\s*name",
-    r"name\s*of\s*(?:the\s*)?referr",
-    r"who\s*referred\s*you",
 ]
 
 

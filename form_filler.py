@@ -56,6 +56,9 @@ from app.services.form_guards import (
     is_remote_willingness_question,
     is_travel_decision_question,
     solve_canonical_screening_question,
+    solve_education_enrollment_question,
+    is_conditional_followup_question,
+    solve_conditional_followup,
     is_essay_or_subjective_question,
     is_contradictory_premise_question,
     is_home_address_field,
@@ -2215,7 +2218,13 @@ class DeterministicEngine:
         return None
 
     @staticmethod
-    def solve(question: str, choices: Optional[List[str]] = None, is_required: bool = True) -> Optional[str]:
+    def solve(
+        question: str,
+        choices: Optional[List[str]] = None,
+        is_required: bool = True,
+        parent_question: Optional[str] = None,
+        parent_answer: Optional[str] = None,
+    ) -> Optional[str]:
         """Return a deterministic answer or None to defer to AI."""
         raw_question = question
         q = normalize_label(question)
@@ -2271,8 +2280,14 @@ class DeterministicEngine:
                 choices=choices
             )
 
-        # 3c. Canonical screening answers from profile.json (R9)
-        canonical_screening = solve_canonical_screening_question(raw_question, choices, is_required=is_required)
+        # 3c. Canonical screening answers from profile.json (R9), education/enrollment, & conditional follow-ups
+        canonical_screening = solve_canonical_screening_question(
+            raw_question,
+            choices,
+            is_required=is_required,
+            parent_question=parent_question,
+            parent_answer=parent_answer,
+        )
         if canonical_screening is not None:
             return canonical_screening
 
@@ -2759,9 +2774,9 @@ class DeterministicEngine:
             return solve_how_did_you_hear(raw_question, choices, is_required=is_required)
 
         # Conditional Follow-ups: Referral / Employee / Other / Conference / Event Specification
-        if re.search(r"(if\s*you\s*(chose|selected).*specify|if\s*other.*(specify|explain|describe)|if\s*referr.*(who|name|specify|list)|who\s*referred\s*you|employee\s*referr.*name|name\s*of\s*(the\s*)?referr|former\s*employee.*name|referred\s*by\s*an\s*employee)", q, re.IGNORECASE):
+        if is_conditional_followup_question(raw_question, parent_question=parent_question, parent_answer=parent_answer):
             # Candidate applied independently via official ATS board and has no referral from an employee, conference, or 'Other'
-            return "N/A"
+            return "N/A" if is_required else ""
 
         # --- Core Candidate Identifiers & Contact Details ---
         if re.search(r"(^|\b)(first\s*name|given\s*name)\b", q, re.IGNORECASE) and not re.search(r"(referr|manager|supervisor|friend|legal.*differ)", q, re.IGNORECASE):
@@ -3631,20 +3646,26 @@ class GeminiSolver:
         question: str,
         choices: Optional[List[str]] = None,
         field_type: str = "text",
+        is_required: bool = True,
+        parent_question: Optional[str] = None,
+        parent_answer: Optional[str] = None,
     ) -> Optional[str]:
         """
         Query AI under strict constraints.
         Enforces Rules 4, 5, 6, 7, 8, 9, 10 before any AI call.
+        Optional fields (is_required=False) that are unknown return "" (skip) instead of halting.
         """
         # Grounded "Why [Company]?" essays: write grounded answer or halt (never generic filler)
         try:
             from app.services.grounded_essay import is_why_company_question, write_why_company_answer
             if not choices and is_why_company_question(question):
-                return write_why_company_answer(question, is_required=True)
+                return write_why_company_answer(question, is_required=is_required)
         except ImportError:
             pass
         # Rule 4 (Nov 18 Addendum): Relocation / Assistance / Timing / Proximity / Willingness
         if is_relocation_assistance_question(question):
+            if not is_required:
+                return ""
             raise FormHaltException(
                 "RELOCATION_ASSISTANCE_HALT",
                 f"Relocation assistance question encountered: '{question}'. Halting without guessing.",
@@ -3652,6 +3673,8 @@ class GeminiSolver:
                 choices=choices
             )
         if is_relocation_timing_question(question):
+            if not is_required:
+                return ""
             raise FormHaltException(
                 "RELOCATION_TIMING_HALT",
                 f"Relocation timing question encountered: '{question}'. Halting without guessing.",
@@ -3659,6 +3682,8 @@ class GeminiSolver:
                 choices=choices
             )
         if is_remote_willingness_question(question):
+            if not is_required:
+                return ""
             raise FormHaltException(
                 "REMOTE_WILLINGNESS_HALT",
                 f"Remote work preference question encountered: '{question}'. Halting without guessing.",
@@ -3666,17 +3691,19 @@ class GeminiSolver:
                 choices=choices
             )
         if is_current_location_or_proximity_question(question, choices):
-            return solve_proximity_or_current_location(question, choices, is_required=True)
+            return solve_proximity_or_current_location(question, choices, is_required=is_required)
         if is_relocation_willingness_question(question, choices):
             return solve_relocation_willingness(question, choices)
         # Rule 5: Which visa
         if is_which_visa_question(question):
-            return solve_which_visa(question, choices, is_required=True)
+            return solve_which_visa(question, choices, is_required=is_required)
         # Rule 9: How heard
         if is_how_did_you_hear_question(question):
-            return solve_how_did_you_hear(question, choices, is_required=True)
+            return solve_how_did_you_hear(question, choices, is_required=is_required)
         # Rule 7: Contradictory premise
         if is_contradictory_premise_question(question):
+            if not is_required:
+                return ""
             raise FormHaltException(
                 "PREMISE_MISMATCH",
                 f"Question premise contradicts candidate profile: '{question}'",
@@ -3685,6 +3712,8 @@ class GeminiSolver:
             )
         # Rule 8: Home address
         if is_home_address_field(question):
+            if not is_required:
+                return ""
             raise FormHaltException(
                 "ADDRESS_REQUIRED",
                 f"Home street address required for '{question}'",
@@ -3695,22 +3724,32 @@ class GeminiSolver:
         if is_essay_or_subjective_question(question):
             if not choices:
                 from app.services.grounded_essay import write_grounded_open_answer
-                return write_grounded_open_answer(question, is_required=True)
+                return write_grounded_open_answer(question, is_required=is_required)
+            if not is_required:
+                return ""
             raise FormHaltException(
                 "ESSAY_HALT",
                 f"Subjective essay or self-rating question required: '{question}'. Bot never generates prose.",
                 question=question,
                 choices=choices
             )
-        # Rule R9: Travel decision & canonical screening questions
+        # Rule R9: Travel decision & canonical screening questions (including education/enrollment & conditional follow-ups)
         if is_travel_decision_question(question):
+            if not is_required:
+                return ""
             raise FormHaltException(
                 "TRAVEL_DECISION_REQUIRED",
                 f"Travel requirement question encountered: '{question}'. No canonical travel answer on file.",
                 question=question,
                 choices=choices
             )
-        canonical_screening = solve_canonical_screening_question(question, choices, is_required=True)
+        canonical_screening = solve_canonical_screening_question(
+            question,
+            choices,
+            is_required=is_required,
+            parent_question=parent_question,
+            parent_answer=parent_answer,
+        )
         if canonical_screening is not None:
             return canonical_screening
 
@@ -3719,7 +3758,7 @@ class GeminiSolver:
             try:
                 from app.services.grounded_essay import is_open_text_question, write_grounded_open_answer
                 if is_open_text_question(question):
-                    return write_grounded_open_answer(question, is_required=True)
+                    return write_grounded_open_answer(question, is_required=is_required)
             except ImportError:
                 pass
 
@@ -3729,6 +3768,11 @@ class GeminiSolver:
             grounded = DynamicResumeEngine.answer_choices(question, choices)
             if grounded:
                 return self._format_and_match(grounded, choices, field_type)
+
+        # Standing rule (Nov 25): Non-required fields that the bot does not know -> SKIP (leave blank, do not halt).
+        if not is_required:
+            logger.info(f"Skipping optional unknown field (no *): '{question[:60]}'")
+            return ""
 
         raise FormHaltException(
             "UNMAPPED_SCREENING_QUESTION",
@@ -4960,6 +5004,49 @@ class HybridATSFormFiller:
         self._fields_filled_this_pass = 0
         self.populated_fields = []
         self.unanswered_fields = []
+        self._last_question: Optional[str] = None
+        self._last_answer: Optional[str] = None
+
+    def _record_answered(self, question: str, answer: Any) -> None:
+        if question and answer is not None and str(answer).strip():
+            self._last_question = str(question).strip()
+            self._last_answer = str(answer).strip()
+
+    def _solve_field(
+        self,
+        question: str,
+        choices: Optional[List[str]] = None,
+        field_type: str = "text",
+        is_required: bool = True,
+    ) -> Optional[str]:
+        """
+        Unified field solver respecting:
+        - Parent question/answer context (for dependent conditional follow-ups)
+        - Standing rule: optional fields (not is_required) that are unknown are SKIPPED (return "")
+          and NEVER invoke halting fallback.
+        """
+        ans = DeterministicEngine.solve(
+            question,
+            choices,
+            is_required=is_required,
+            parent_question=self._last_question,
+            parent_answer=self._last_answer,
+        )
+        if ans is None:
+            if not is_required:
+                logger.info(f"Skipping optional unknown field ({field_type}): '{str(question)[:60]}'")
+                return ""
+            ans = self.ai.solve(
+                question,
+                choices,
+                field_type,
+                is_required=True,
+                parent_question=self._last_question,
+                parent_answer=self._last_answer,
+            )
+        if not is_required and ans is not None and str(ans).strip() == "N/A":
+            return ""
+        return ans
 
     # ------------------------------------------------------------------
     # Step 1: Resolve Target — iframe detection
@@ -5294,9 +5381,21 @@ class HybridATSFormFiller:
                     if await lbl_el.count() == 0:
                         continue
                     raw_label = (await lbl_el.text_content() or "").strip()
-                    label = raw_label.replace("*", "").replace("\n", " ").strip()
+                    label = raw_label.replace("*", "").replace("✱", "").replace("\n", " ").strip()
                     if not label:
                         continue
+
+                    is_req = bool("*" in raw_label or "✱" in raw_label)
+                    if not is_req:
+                        try:
+                            is_req = await c.evaluate('''el => {
+                                if (el.querySelector("[required], [aria-required='true'], .required, [class*='asterisk']")) return true;
+                                const p = el.closest(".field-wrapper, .field, .application-question");
+                                if (p && (p.classList.contains("required") || p.querySelector(".required, [required], [aria-required='true'], [class*='asterisk']"))) return true;
+                                return false;
+                            }''')
+                        except Exception:
+                            pass
 
                     # Append subtext/description if present in field container
                     try:
@@ -5343,25 +5442,41 @@ class HybridATSFormFiller:
                     if count > 0:
                         raw_choices = await options.all_text_contents()
                         choices = [ch.strip() for ch in raw_choices if ch.strip()]
-                        # 1. Deterministic Matrix first
-                        answer = DeterministicEngine.solve(label, choices)
+                        # 1. Deterministic Matrix first (respecting is_required & parent context)
+                        answer = DeterministicEngine.solve(
+                            label,
+                            choices,
+                            is_required=is_req,
+                            parent_question=self._last_question,
+                            parent_answer=self._last_answer,
+                        )
 
                         # Verify if deterministic answer matches any option in choices
                         if not answer or not any(score_option_match(answer, ch) >= 0.60 for ch in choices):
-                            # 2. Query AI Solver (NVIDIA NIM 90B / Gemini)
-                            ai_ans = self.ai.solve(label, choices, "select")
-                            if ai_ans and any(score_option_match(ai_ans, ch) >= 0.60 for ch in choices):
-                                answer = ai_ans
+                            if is_req:
+                                # 2. Query AI Solver ONLY for required fields (optional unknown fields are skipped)
+                                ai_ans = self.ai.solve(
+                                    label,
+                                    choices,
+                                    "select",
+                                    is_required=True,
+                                    parent_question=self._last_question,
+                                    parent_answer=self._last_answer,
+                                )
+                                if ai_ans and any(score_option_match(ai_ans, ch) >= 0.60 for ch in choices):
+                                    answer = ai_ans
+                            else:
+                                answer = None
 
                         # 3. Intelligent Domain Safety Fallback if still unmatched
                         if not answer or not any(score_option_match(answer, ch) >= 0.60 for ch in choices):
                             q_low = label.lower()
                             if re.search(r"(conflict|government|crime|felony|violation|investigation|bribe|misconduct|disciplinary|dispute|suit|lawsuit|relat|client.*vendor|referred\s*by|former\s*employee|previously\s*employed)", q_low):
-                                answer = DeterministicEngine.solve("Are you a former government official or have conflict of interest?", choices)
+                                answer = DeterministicEngine.solve("Are you a former government official or have conflict of interest?", choices, is_required=is_req)
                             elif re.search(r"(certif|acknowledg|confirm|agree|accept|understand|permission|consent|authorized|receipt)", q_low):
-                                answer = DeterministicEngine.solve("Please confirm receipt and acknowledge", choices)
+                                answer = DeterministicEngine.solve("Please confirm receipt and acknowledge", choices, is_required=is_req)
                             elif re.search(r"(how\s*(do\s*)?you\s*use\s*ai|best\s*describes.*use\s*ai|ai\s*tools\s*today)", q_low):
-                                answer = DeterministicEngine.solve("Which of the following best describes how you use AI tools today?", choices)
+                                answer = DeterministicEngine.solve("Which of the following best describes how you use AI tools today?", choices, is_required=is_req)
 
                         if answer:
                             scored_gh = [(score_option_match(answer, opt_t), i, opt_t) for i, opt_t in enumerate(choices)]
@@ -5373,13 +5488,16 @@ class HybridATSFormFiller:
                                 logger.info(f"GH Select [{label[:40]}] → {best_t} (score={best_s:.2f})")
                                 self._fields_filled_this_pass += 1
                                 self.populated_fields.append({"portal": "Greenhouse", "type": "select", "label": label, "value": best_t})
+                                self._record_answered(label, best_t)
                                 filled_any = True
                             else:
                                 await self._press_escape(t)
-                                self.unanswered_fields.append({"portal": "Greenhouse", "type": "select", "label": label, "choices": choices})
+                                if is_req:
+                                    self.unanswered_fields.append({"portal": "Greenhouse", "type": "select", "label": label, "choices": choices})
                         else:
                             await self._press_escape(t)
-                            self.unanswered_fields.append({"portal": "Greenhouse", "type": "select", "label": label, "choices": choices})
+                            if is_req:
+                                self.unanswered_fields.append({"portal": "Greenhouse", "type": "select", "label": label, "choices": choices})
                     else:
                         await self._press_escape(t)
                 except Exception as e:
@@ -5420,33 +5538,38 @@ class HybridATSFormFiller:
                     return Boolean(reqAttr || hasStar);
                 }''')
 
-                # Conditional follow-up check (e.g. "If you chose Braze Employee... please specify")
-                is_conditional = bool(re.search(r"(if\s*you\s*(chose|selected).*specify|if\s*other.*(specify|explain|describe)|if\s*referr.*(who|name|specify|list)|who\s*referred\s*you|employee\s*referr.*name|name\s*of\s*(the\s*)?referr|former\s*employee.*name|referred\s*by\s*an\s*employee|if\s*yes.*explain)", label, re.IGNORECASE))
+                # Conditional follow-up check (stateless + parent-question context)
+                is_conditional = is_conditional_followup_question(
+                    label,
+                    parent_question=self._last_question,
+                    parent_answer=self._last_answer,
+                )
                 if is_conditional:
                     if is_req:
                         await inp.fill("N/A")
                         logger.info(f"GH Text [{label[:35]}] → N/A (Required Conditional)")
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": "Greenhouse", "type": inp_tag, "label": label, "value": "N/A"})
+                        self._record_answered(label, "N/A")
                     else:
                         logger.info(f"GH Text [{label[:35]}] → Skipped (Optional Conditional)")
                     continue
 
                 # 1. Deterministic Matrix first; 2. Only halt/invoke fallback if field is required
-                answer = DeterministicEngine.solve(label, is_required=is_req)
-                if answer is None and is_req:
-                    answer = self.ai.solve(label, None, "textarea" if inp_tag == "textarea" else "text")
+                answer = self._solve_field(label, None, "textarea" if inp_tag == "textarea" else "text", is_required=is_req)
                 if answer and str(answer) != "N/A":
                     await inp.fill(str(answer))
                     logger.info(f"GH Text [{label[:35]}] → {str(answer)[:50]}")
                     self._fields_filled_this_pass += 1
                     self.populated_fields.append({"portal": "Greenhouse", "type": inp_tag, "label": label, "value": str(answer)})
+                    self._record_answered(label, str(answer))
                 elif answer and str(answer) == "N/A":
                     if is_req:
                         await inp.fill("N/A")
                         logger.info(f"GH Text [{label[:35]}] → N/A (Required)")
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": "Greenhouse", "type": inp_tag, "label": label, "value": "N/A"})
+                        self._record_answered(label, "N/A")
                     else:
                         logger.info(f"GH Text [{label[:35]}] → Skipped (Optional N/A)")
                 else:
@@ -5550,9 +5673,20 @@ class HybridATSFormFiller:
                     if any(pos in opt_lower for pos in ["yes", "authorized", "eligible", "united states", "18 or older"]):
                         to_check = True
 
-                # 6. DeterministicEngine match
+                # 6. DeterministicEngine match (respecting optionality)
                 else:
-                    ans = DeterministicEngine.solve(info["question"], [info["option"]])
+                    cb_req = await cb.evaluate('''el => {
+                        if (el.required || el.getAttribute("aria-required") === "true") return true;
+                        const fe = el.closest("fieldset, .field, .field-wrapper, .application-question");
+                        return Boolean(fe && (fe.classList.contains("required") || fe.querySelector(".required, [required], [aria-required='true']") || fe.innerText.includes("*") || fe.innerText.includes("✱")));
+                    }''')
+                    ans = DeterministicEngine.solve(
+                        info["question"],
+                        [info["option"]],
+                        is_required=cb_req,
+                        parent_question=self._last_question,
+                        parent_answer=self._last_answer,
+                    )
                     if ans and ans.lower() in ["yes", "true", "agree", "confirm", "acknowledge", "accept", opt_lower]:
                         to_check = True
 
@@ -5762,13 +5896,19 @@ class HybridATSFormFiller:
 
                 best_choice = None
                 if raw_choices:
-                    best_choice = DeterministicEngine.solve(label_clean, raw_choices)
+                    best_choice = DeterministicEngine.solve(
+                        label_clean,
+                        raw_choices,
+                        is_required=is_req,
+                        parent_question=self._last_question,
+                        parent_answer=self._last_answer,
+                    )
 
                 # 2. If no direct match from open menu, determine search text and filter
                 if not best_choice:
                     search_queries = []
-                    if any(k in q_low for k in ["how did you hear", "referral", "source", "where did you find", "hear about"]):
-                        search_queries = ["LinkedIn"]
+                    if any(k in q_low for k in ["how did you hear", "referral source", "source of application", "where did you find", "hear about"]):
+                        search_queries = ["Company", "Website", "Job Board", "Other"]
                     elif any(k in q_low for k in ["work auth", "authorized to work", "immigration", "visa", "sponsorship"]):
                         search_queries = ["F-1", "Authorized", "Require", "Yes"]
                     elif any(k in q_low for k in ["school", "university", "college", "institution"]):
@@ -5782,7 +5922,12 @@ class HybridATSFormFiller:
                     elif any(k in q_low for k in ["export", "us person", "u.s. person"]):
                         search_queries = ["None of the above", "Citizen of a different country", "No"]
                     else:
-                        intended_val = DeterministicEngine.solve(label_clean)
+                        intended_val = DeterministicEngine.solve(
+                            label_clean,
+                            is_required=is_req,
+                            parent_question=self._last_question,
+                            parent_answer=self._last_answer,
+                        )
                         if intended_val:
                             search_queries = [str(intended_val).split()[0]]
 
@@ -5804,7 +5949,13 @@ class HybridATSFormFiller:
                             if txt and not any(no_opt in txt.lower() for no_opt in ["no options", "no results", "loading", "no matching"]):
                                 filter_choices.append(txt)
                         if filter_choices:
-                            best_choice = DeterministicEngine.solve(label_clean, filter_choices) or filter_choices[0]
+                            best_choice = DeterministicEngine.solve(
+                                label_clean,
+                                filter_choices,
+                                is_required=is_req,
+                                parent_question=self._last_question,
+                                parent_answer=self._last_answer,
+                            ) or (filter_choices[0] if is_req else None)
                             if best_choice:
                                 break
 
@@ -5881,8 +6032,12 @@ class HybridATSFormFiller:
                     return Boolean(reqAttr || hasStar);
                 }''')
 
-                # Conditional follow-up check (e.g. "If you chose X... please specify")
-                is_conditional = bool(re.search(r"(if\s*you\s*(chose|selected).*specify|if\s*other.*(specify|explain|describe)|if\s*referr.*(who|name|specify|list)|who\s*referred\s*you|employee\s*referr.*name|name\s*of\s*(the\s*)?referr|former\s*employee.*name|referred\s*by\s*an\s*employee|if\s*yes.*explain)", label, re.IGNORECASE))
+                # Conditional follow-up check (stateless + parent-question context)
+                is_conditional = is_conditional_followup_question(
+                    label,
+                    parent_question=self._last_question,
+                    parent_answer=self._last_answer,
+                )
                 if is_conditional:
                     if is_req:
                         await inp.scroll_into_view_if_needed()
@@ -5892,6 +6047,7 @@ class HybridATSFormFiller:
                         logger.info(f"Ashby Input [{label[:35]}] → N/A (Required Conditional)")
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": "Ashby", "type": inp_tag, "label": label, "value": "N/A"})
+                        self._record_answered(label, "N/A")
                         await asyncio.sleep(FIELD_FILL_GAP_MS / 1000.0)
                     else:
                         logger.info(f"Ashby Input [{label[:35]}] → Skipped (Optional Conditional)")
@@ -5922,15 +6078,14 @@ class HybridATSFormFiller:
                         else:
                             continue
                 else:
-                    ans = DeterministicEngine.solve(label, is_required=is_req)
-                    if ans is None and is_req:
-                        ans = self.ai.solve(label, None, "textarea" if inp_tag == "textarea" else "text")
+                    ans = self._solve_field(label, None, "textarea" if inp_tag == "textarea" else "text", is_required=is_req)
 
-                if ans and str(ans) != "N/A":
+                if ans and (str(ans) != "N/A" or is_req):
                     await self._human_fill(inp, str(ans))
                     logger.info(f"Ashby Input [{label[:35]}] → {str(ans)[:50]}")
                     self._fields_filled_this_pass += 1
                     self.populated_fields.append({"portal": "Ashby", "type": inp_tag, "label": label, "value": str(ans)})
+                    self._record_answered(label, str(ans))
                     if "ashby-application-form-input-date" in str(await inp.get_attribute("class") or "") or inp_tag == "date":
                         try:
                             await inp.press("Escape")
@@ -6050,15 +6205,27 @@ class HybridATSFormFiller:
                     )
                 r_choices = [o["label"] for o in r_choice_objs]
 
-                ans = DeterministicEngine.solve(q_text, r_choices)
-                if ans is None:
-                    ans = self.ai.solve(q_text, r_choices, "radio")
+                is_req = await r.evaluate('''el => {
+                    if (el.required || el.getAttribute("aria-required") === "true") return true;
+                    const c = el.closest(".ashby-application-form-field-entry, .field-entry, [class*='fieldEntry'], fieldset, .application-question");
+                    if (c) {
+                        if (c.classList.contains("required") || c.hasAttribute("required")) return true;
+                        if (c.querySelector("[required], [aria-required='true'], .required, [class*='asterisk']")) return true;
+                        const lbl = c.querySelector("legend, label, .application-label, h4, [class*='title']");
+                        const t = (lbl ? lbl.innerText : c.innerText.split('\\n')[0]) || "";
+                        if (t.includes("*") || t.includes("✱")) return true;
+                    }
+                    return false;
+                }''')
+
+                ans = self._solve_field(q_text, r_choices, "radio", is_required=is_req)
                 if ans:
                     ok = await select_matching_option(t, q_text, ans, field_type="radio", card_locator=card if await card.count() > 0 else None)
                     if ok:
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": "Ashby", "type": "radio", "label": q_text, "value": ans})
-                else:
+                        self._record_answered(q_text, ans)
+                elif is_req:
                     self.unanswered_fields.append({"portal": "Ashby", "type": "radio", "label": q_text})
             except Exception as e:
                 if isinstance(e, FormHaltException):
@@ -6101,12 +6268,30 @@ class HybridATSFormFiller:
                         question=info["question"],
                     )
 
-                ans = DeterministicEngine.solve(info["question"], [info["option"]]) or DeterministicEngine.solve(info["option"])
+                is_req = await cb.evaluate('''el => {
+                    if (el.required || el.getAttribute("aria-required") === "true") return true;
+                    const fe = el.closest(".ashby-application-form-field-entry, [class*='field-entry'], [class*='fieldEntry'], fieldset");
+                    if (fe) {
+                        if (fe.classList.contains("required") || fe.querySelector("[required], [aria-required='true'], .required, [class*='asterisk']")) return true;
+                        const qEl = fe.querySelector("label, [class*='title'], [class*='Title'], legend");
+                        const t = (qEl ? qEl.innerText : fe.innerText.split('\\n')[0]) || "";
+                        if (t.includes("*") || t.includes("✱")) return true;
+                    }
+                    return false;
+                }''')
+                ans = DeterministicEngine.solve(
+                    info["question"],
+                    [info["option"]],
+                    is_required=is_req,
+                    parent_question=self._last_question,
+                    parent_answer=self._last_answer,
+                ) or DeterministicEngine.solve(info["option"], is_required=is_req)
                 if ans:
                     ok = await select_matching_option(t, info["question"], ans, field_type="checkbox", card_locator=card if await card.count() > 0 else None)
                     if ok:
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": "Ashby", "type": "checkbox", "label": info["option"], "value": "checked"})
+                        self._record_answered(info["question"], ans)
             except Exception as e:
                 if isinstance(e, FormHaltException):
                     raise
@@ -6153,15 +6338,21 @@ class HybridATSFormFiller:
                         choices=[b.get("label") or "<UNREADABLE>" for b in btn_objs],
                     )
                 choices = [b["label"] for b in btn_objs]
-                ans = DeterministicEngine.solve(q_text, choices)
-                if ans is None:
-                    ans = self.ai.solve(q_text, choices, "toggle")
+                is_req = await card.evaluate('''el => {
+                    if (el.classList.contains("required") || el.hasAttribute("required")) return true;
+                    if (el.querySelector("[required], [aria-required='true'], .required, [class*='asterisk']")) return true;
+                    const lbl = el.querySelector("label, .application-label, legend, h4, [class*='title']");
+                    const t = (lbl ? lbl.innerText : el.innerText.split('\\n')[0]) || "";
+                    return Boolean(t.includes("*") || t.includes("✱"));
+                }''')
+                ans = self._solve_field(q_text, choices, "toggle", is_required=is_req)
                 if ans:
                     ok = await select_matching_option(t, q_text, ans, field_type="button", card_locator=card)
                     if ok:
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": "Ashby", "type": "toggle", "label": q_text, "value": ans})
-                else:
+                        self._record_answered(q_text, ans)
+                elif is_req:
                     self.unanswered_fields.append({"portal": "Ashby", "type": "toggle", "label": q_text})
             except Exception as e:
                 if isinstance(e, FormHaltException):
@@ -6270,6 +6461,15 @@ class HybridATSFormFiller:
                 if any(k == q_lower for k in ["resume/cv", "full name", "email", "phone", "current location", "current company", "linkedin url", "other website"]):
                     continue
 
+                is_req = await card.evaluate('''el => {
+                    let reqAttr = el.querySelector("[required], [aria-required='true']");
+                    let reqCls = el.classList.contains("required") || el.querySelector(".required, [class*='required'], [class*='asterisk']");
+                    let lbl = el.querySelector(".text, .application-label, legend, h4, .label");
+                    let lblText = (lbl ? lbl.innerText : el.innerText.split(String.fromCharCode(10))[0]) || "";
+                    let star = lblText.includes("✱") || lblText.includes("*");
+                    return Boolean(reqAttr || reqCls || star);
+                }''')
+
                 # Case A: Checkboxes inside this card
                 checkboxes = await card.locator('input[type="checkbox"]').all()
                 if checkboxes:
@@ -6289,12 +6489,13 @@ class HybridATSFormFiller:
                                     await cb.evaluate("el => { if (!el.checked) { el.click(); el.dispatchEvent(new Event('change', { bubbles: true })); } }")
                                     logger.info(f"Lever Checkbox [Pronouns] → {cb_labels[i]}")
                                     self._fields_filled_this_pass += 1
+                                    self._record_answered(question_text, cb_labels[i])
                                 break
                         continue
 
                     # Rule 9: How did you hear -> Company Website first, Job Board second, NEVER LinkedIn
                     if any(k in q_lower for k in ["how did you hear", "hear about", "referral source"]):
-                        chosen = solve_how_did_you_hear(question_text, cb_labels, is_required=False)
+                        chosen = solve_how_did_you_hear(question_text, cb_labels, is_required=is_req)
                         if chosen:
                             for i, cb in enumerate(checkboxes):
                                 if chosen.lower() in cb_labels[i].lower():
@@ -6302,15 +6503,17 @@ class HybridATSFormFiller:
                                         await cb.evaluate("el => { if (!el.checked) { el.click(); el.dispatchEvent(new Event('change', { bubbles: true })); } }")
                                         logger.info(f"Lever Checkbox [How did you hear] → {cb_labels[i]}")
                                         self._fields_filled_this_pass += 1
+                                        self._record_answered(question_text, cb_labels[i])
                                     break
                         continue
 
-                    chosen = DeterministicEngine.solve(question_text, cb_labels)
+                    chosen = self._solve_field(question_text, cb_labels, "checkbox", is_required=is_req)
                     if chosen:
                         ok = await select_matching_option(target, question_text, chosen, field_type="checkbox", card_locator=card)
                         if ok:
                             self._fields_filled_this_pass += 1
                             self.populated_fields.append({"portal": "Lever", "type": "checkbox", "label": question_text, "value": chosen})
+                            self._record_answered(question_text, chosen)
                     continue
 
                 # Case B: Radios inside this card (R8/Nov 22 R1: visible label first, NEVER raw value='on')
@@ -6343,15 +6546,14 @@ class HybridATSFormFiller:
                             )
                         r_labels.append(r_obj["label"])
 
-                    chosen = DeterministicEngine.solve(question_text, r_labels)
-                    if chosen is None:
-                        chosen = self.ai.solve(question_text, r_labels, "radio")
+                    chosen = self._solve_field(question_text, r_labels, "radio", is_required=is_req)
                     if chosen:
                         ok = await select_matching_option(target, question_text, chosen, field_type="radio", card_locator=card)
                         if ok:
                             self._fields_filled_this_pass += 1
                             self.populated_fields.append({"portal": "Lever", "type": "radio", "label": question_text, "value": chosen})
-                    else:
+                            self._record_answered(question_text, chosen)
+                    elif is_req:
                         self.unanswered_fields.append({"portal": "Lever", "type": "radio", "label": question_text, "choices": r_labels})
                     continue
 
@@ -6365,22 +6567,22 @@ class HybridATSFormFiller:
                         if any(k in question_text.lower() for k in ["location", "office", "where are you", "city", "country"]):
                             chosen = DeterministicEngine.pick_best_location_choice(clean_opts)
                         else:
-                            chosen = DeterministicEngine.solve(question_text, clean_opts) or self.ai.solve(question_text, clean_opts, "select")
+                            chosen = self._solve_field(question_text, clean_opts, "select", is_required=is_req)
                         if chosen:
                             ok = await select_matching_option(target, question_text, chosen, field_type="select", card_locator=card)
                             if ok:
                                 self._fields_filled_this_pass += 1
                                 self.populated_fields.append({"portal": "Lever", "type": "select", "label": question_text, "value": chosen})
-                        else:
+                                self._record_answered(question_text, chosen)
+                        elif is_req:
                             self.unanswered_fields.append({"portal": "Lever", "type": "select", "label": question_text, "choices": clean_opts})
                     continue
 
-                is_req = await card.evaluate('''el => {
-                    let reqAttr = el.querySelector("[required], [aria-required='true']");
-                    let star = el.querySelector(".required, [class*='required']") || el.innerText.includes("✱") || el.innerText.includes("*");
-                    return Boolean(reqAttr || star);
-                }''')
-                is_conditional = bool(re.search(r"(if\s*you\s*(chose|selected).*specify|if\s*other.*(specify|explain|describe)|if\s*referr.*(who|name|specify|list)|who\s*referred\s*you|employee\s*referr.*name|name\s*of\s*(the\s*)?referr|former\s*employee.*name|referred\s*by\s*an\s*employee|if\s*yes.*explain)", question_text, re.IGNORECASE))
+                is_conditional = is_conditional_followup_question(
+                    question_text,
+                    parent_question=self._last_question,
+                    parent_answer=self._last_answer,
+                )
 
                 # Case D: Textarea inside this card
                 ta = card.locator('textarea').first
@@ -6393,19 +6595,20 @@ class HybridATSFormFiller:
                                 logger.info(f"Lever Textarea [{question_text[:30]}] → N/A (Required Conditional)")
                                 self._fields_filled_this_pass += 1
                                 self.populated_fields.append({"portal": "Lever", "type": "textarea", "label": question_text, "value": "N/A"})
+                                self._record_answered(question_text, "N/A")
                             else:
                                 logger.info(f"Lever Textarea [{question_text[:30]}] → Skipped (Optional Conditional)")
                             continue
 
-                        ans = DeterministicEngine.solve(question_text) or self.ai.solve(question_text, None, "textarea")
-                        if ans and str(ans) != "N/A":
+                        ans = self._solve_field(question_text, None, "textarea", is_required=is_req)
+                        if ans and (str(ans) != "N/A" or is_req):
                             await self._human_fill(ta, str(ans))
                             logger.info(f"Lever Textarea [{question_text[:30]}] → {str(ans)[:40]}")
                             self._fields_filled_this_pass += 1
                             self.populated_fields.append({"portal": "Lever", "type": "textarea", "label": question_text, "value": str(ans)})
-                        else:
-                            if is_req:
-                                self.unanswered_fields.append({"portal": "Lever", "type": "textarea", "label": question_text})
+                            self._record_answered(question_text, str(ans))
+                        elif is_req:
+                            self.unanswered_fields.append({"portal": "Lever", "type": "textarea", "label": question_text})
                     continue
 
                 # Case E: Text input inside this card
@@ -6419,19 +6622,20 @@ class HybridATSFormFiller:
                                 logger.info(f"Lever Input [{question_text[:30]}] → N/A (Required Conditional)")
                                 self._fields_filled_this_pass += 1
                                 self.populated_fields.append({"portal": "Lever", "type": "text", "label": question_text, "value": "N/A"})
+                                self._record_answered(question_text, "N/A")
                             else:
                                 logger.info(f"Lever Input [{question_text[:30]}] → Skipped (Optional Conditional)")
                             continue
 
-                        ans = DeterministicEngine.solve(question_text) or self.ai.solve(question_text, None, "text")
-                        if ans and str(ans) != "N/A":
+                        ans = self._solve_field(question_text, None, "text", is_required=is_req)
+                        if ans and (str(ans) != "N/A" or is_req):
                             await self._human_fill(txt, str(ans))
                             logger.info(f"Lever Input [{question_text[:30]}] → {str(ans)[:40]}")
                             self._fields_filled_this_pass += 1
                             self.populated_fields.append({"portal": "Lever", "type": "text", "label": question_text, "value": str(ans)})
-                        else:
-                            if is_req:
-                                self.unanswered_fields.append({"portal": "Lever", "type": "text", "label": question_text})
+                            self._record_answered(question_text, str(ans))
+                        elif is_req:
+                            self.unanswered_fields.append({"portal": "Lever", "type": "text", "label": question_text})
                     continue
 
             except Exception as e:
@@ -6539,16 +6743,30 @@ class HybridATSFormFiller:
                 opts = [o for o in opts if o and not any(s in o.lower() for s in ["select...", "select ...", "--", "choose...", "please select"])]
                 if not opts:
                     continue
-                # Deterministic Matrix first; Gemini fallback if unmatched
-                ans = DeterministicEngine.solve(label, opts) or self.ai.solve(label, opts, "select")
+                is_req = await sel.evaluate('''el => {
+                    if (el.required || el.getAttribute("aria-required") === "true") return true;
+                    const p = el.closest("fieldset, .field, .field-wrapper, .application-question, [class*='field']");
+                    if (p) {
+                        if (p.classList.contains("required") || p.querySelector("[required], [aria-required='true'], .required, [class*='asterisk']")) return true;
+                        const lbl = p.querySelector("legend, label, .application-label, .text, [class*='title']");
+                        const t = (lbl ? lbl.innerText : p.innerText.split('\\n')[0]) || "";
+                        if (t.includes("*") || t.includes("✱")) return true;
+                    }
+                    return false;
+                }''')
+                # Deterministic Matrix first; optional unknown fields are skipped
+                ans = self._solve_field(label, opts, "select", is_required=is_req)
                 if ans:
                     card = sel.locator('xpath=ancestor::*[self::fieldset or contains(@class,"field") or contains(@class,"question")][1]').first
                     ok = await select_matching_option(target, label, ans, field_type="select", card_locator=card if await card.count() > 0 else None)
                     if ok:
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": self.portal, "type": "select", "label": label, "value": ans})
+                        self._record_answered(label, ans)
                         await self._wait_field_stable(sel)
             except Exception as e:
+                if isinstance(e, FormHaltException):
+                    raise
                 logger.debug(f"Native select error: {e}")
 
     async def _fill_radios(self, target):
@@ -6610,13 +6828,28 @@ class HybridATSFormFiller:
                 if not q_text:
                     continue
 
-                ans = DeterministicEngine.solve(q_text) or self.ai.solve(q_text, None, "radio")
+                is_req = await r.evaluate('''el => {
+                    if (el.required || el.getAttribute("aria-required") === "true") return true;
+                    const c = el.closest("fieldset, .field, .field-wrapper, .application-question, [class*='fieldEntry'], [class*='field-entry']");
+                    if (c) {
+                        if (c.classList.contains("required") || c.querySelector("[required], [aria-required='true'], .required, [class*='asterisk']")) return true;
+                        const lbl = c.querySelector("legend, label, .label, [class*='title']");
+                        const t = (lbl ? lbl.innerText : c.innerText.split('\\n')[0]) || "";
+                        if (t.includes("*") || t.includes("✱")) return true;
+                    }
+                    return false;
+                }''')
+
+                ans = self._solve_field(q_text, None, "radio", is_required=is_req)
                 if ans:
                     ok = await select_matching_option(target, q_text, ans, field_type="radio", card_locator=container if await container.count() > 0 else None)
                     if ok:
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": self.portal, "type": "radio", "label": q_text, "value": ans})
+                        self._record_answered(q_text, ans)
             except Exception as e:
+                if isinstance(e, FormHaltException):
+                    raise
                 logger.debug(f"Radio group error: {e}")
 
     async def _fill_button_groups(self, target):
@@ -6650,13 +6883,23 @@ class HybridATSFormFiller:
                     return btns.map(b => b.innerText.trim()).filter(Boolean);
                 }''')
                 choices = btn_texts if btn_texts else ["Yes", "No"]
-                ans = DeterministicEngine.solve(q_text, choices) or self.ai.solve(q_text, choices, "toggle")
+                is_req = await card.evaluate('''el => {
+                    if (el.classList.contains("required") || el.hasAttribute("required")) return true;
+                    if (el.querySelector("[required], [aria-required='true'], .required, [class*='asterisk']")) return true;
+                    const lbl = el.querySelector("legend, label, .application-label, [class*='title'], [class*='label']");
+                    const t = (lbl ? lbl.innerText : el.innerText.split('\\n')[0]) || "";
+                    return Boolean(t.includes("*") || t.includes("✱"));
+                }''')
+                ans = self._solve_field(q_text, choices, "toggle", is_required=is_req)
                 if ans:
                     ok = await select_matching_option(target, q_text, ans, field_type="button", card_locator=card)
                     if ok:
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": self.portal or "Universal", "type": "toggle", "label": q_text, "value": ans})
+                        self._record_answered(q_text, ans)
             except Exception as e:
+                if isinstance(e, FormHaltException):
+                    raise
                 logger.debug(f"Button group sweep error: {e}")
 
     # ==================================================================
@@ -6704,35 +6947,39 @@ class HybridATSFormFiller:
                     return Boolean(reqAttr || hasStar);
                 }''')
 
-                # Conditional follow-up check (e.g. "If you chose X... please specify")
-                is_conditional = bool(re.search(r"(if\s*you\s*(chose|selected).*specify|if\s*other.*(specify|explain|describe)|if\s*referr.*(who|name|specify|list)|who\s*referred\s*you|employee\s*referr.*name|name\s*of\s*(the\s*)?referr|former\s*employee.*name|referred\s*by\s*an\s*employee|if\s*yes.*explain)", label, re.IGNORECASE))
+                # Conditional follow-up check (stateless + parent-question context)
+                is_conditional = is_conditional_followup_question(
+                    label,
+                    parent_question=self._last_question,
+                    parent_answer=self._last_answer,
+                )
                 if is_conditional:
                     if is_req:
                         await inp.fill("N/A")
                         logger.info(f"Sweep fill [{label[:35]}] → N/A (Required Conditional)")
                         self._fields_filled_this_pass += 1
                         self.populated_fields.append({"portal": "Universal", "type": inp_tag, "label": label, "value": "N/A"})
+                        self._record_answered(label, "N/A")
                     else:
                         logger.info(f"Sweep fill [{label[:35]}] → Skipped (Optional Conditional)")
                     continue
 
-                # 1. Deterministic Matrix first; 2. Gemini fallback if unmatched
-                resolved = DeterministicEngine.solve(label)
-                if resolved is not None:
-                    ans = resolved
-                else:
-                    ans = self.ai.solve(label, None, "textarea" if inp_tag == "textarea" else "text")
+                # 1. Deterministic Matrix first; optional unknown fields are skipped
+                ans = self._solve_field(label, None, "textarea" if inp_tag == "textarea" else "text", is_required=is_req)
 
                 if (not ans or str(ans) == "N/A") and not is_req:
                     continue
 
-                if ans and str(ans) != "N/A":
+                if ans and (str(ans) != "N/A" or is_req):
                     await inp.fill(str(ans))
                     logger.info(f"Sweep fill [{label[:35]}] → {str(ans)[:40]}")
                     self._fields_filled_this_pass += 1
                     self.populated_fields.append({"portal": "Universal", "type": inp_tag, "label": label, "value": str(ans)})
+                    self._record_answered(label, str(ans))
                     await self._wait_field_stable(inp)
-            except Exception:
+            except Exception as e:
+                if isinstance(e, FormHaltException):
+                    raise
                 pass
 
         # Native <select> elements
@@ -6750,15 +6997,29 @@ class HybridATSFormFiller:
                 opts = [o for o in opts if o and not any(s in o.lower() for s in ["select...", "select ...", "--", "choose..."])]
                 if not opts:
                     continue
-                # 1. Deterministic Matrix first; 2. Gemini fallback if unmatched
-                ans = DeterministicEngine.solve(label, opts) or self.ai.solve(label, opts, "select")
+                is_req = await sel.evaluate('''el => {
+                    if (el.required || el.getAttribute("aria-required") === "true") return true;
+                    const p = el.closest("fieldset, .field, .field-wrapper, .application-question, [class*='field']");
+                    if (p) {
+                        if (p.classList.contains("required") || p.querySelector("[required], [aria-required='true'], .required, [class*='asterisk']")) return true;
+                        const lbl = p.querySelector("legend, label, .application-label, .text, [class*='title']");
+                        const t = (lbl ? lbl.innerText : p.innerText.split('\\n')[0]) || "";
+                        if (t.includes("*") || t.includes("✱")) return true;
+                    }
+                    return false;
+                }''')
+                # 1. Deterministic Matrix first; optional unknown fields are skipped
+                ans = self._solve_field(label, opts, "select", is_required=is_req)
                 if ans:
                     card = sel.locator('xpath=ancestor::*[self::fieldset or contains(@class,"field") or contains(@class,"question")][1]').first
                     ok = await select_matching_option(target, label, ans, field_type="select", card_locator=card if await card.count() > 0 else None)
                     if ok:
                         self._fields_filled_this_pass += 1
+                        self._record_answered(label, ans)
                         await self._wait_field_stable(sel)
-            except Exception:
+            except Exception as e:
+                if isinstance(e, FormHaltException):
+                    raise
                 pass
 
         # Radio button sweep
@@ -6849,7 +7110,7 @@ class HybridATSFormFiller:
                         continue
 
                     # Conditional check
-                    if re.search(r"(if\s*you\s*(chose|selected).*specify|if\s*other.*(specify|explain|describe)|if\s*referr.*(who|name|specify|list)|who\s*referred\s*you|employee\s*referr.*name|name\s*of\s*(the\s*)?referr|former\s*employee.*name|referred\s*by\s*an\s*employee|if\s*yes.*explain)", lbl, re.IGNORECASE):
+                    if is_conditional_followup_question(lbl, parent_question=self._last_question, parent_answer=self._last_answer):
                         selector = f"#{item['id']}" if item.get('id') else f"[name='{item.get('name', '')}']"
                         loc = self.page.locator(selector).first
                         if await loc.count() > 0:
@@ -6857,6 +7118,7 @@ class HybridATSFormFiller:
                             logger.info(f"Audit retry: [{lbl[:30]}] → N/A (Required Conditional)")
                             self._fields_filled_this_pass += 1
                             self.populated_fields.append({"portal": "AuditRetry", "type": item.get('type', 'text'), "label": lbl, "value": "N/A"})
+                            self._record_answered(lbl, "N/A")
                         continue
 
                     selector = f"#{item['id']}" if item.get('id') else f"[name='{item.get('name', '')}']"

@@ -90,6 +90,8 @@ def _evaluate_field_deterministic(
     field: Dict[str, Any],
     profile: Optional[Dict[str, Any]] = None,
     profile_strings: Optional[List[str]] = None,
+    parent_question: Optional[str] = None,
+    parent_answer: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Mechanically evaluate one extracted form field against the deterministic checklist.
@@ -115,10 +117,10 @@ def _evaluate_field_deterministic(
     if val_low == "on":
         return _fail("Option selected by raw HTML default value 'on' instead of visible label")
 
-    # 2. Required field blank / placeholder, or toggle left unselected
+    # 2. Required field blank / placeholder, or required toggle left unselected
     if is_req and val_low in PLACEHOLDER_VALUES:
         return _fail("Required field is blank or still on placeholder value")
-    if ftype == "toggle" and val_low in PLACEHOLDER_VALUES:
+    if is_req and ftype == "toggle" and val_low in PLACEHOLDER_VALUES:
         return _fail("Yes/No toggle left in default/unselected state")
 
     # 3. Education months & years completeness (even if not flagged required on DOM)
@@ -354,7 +356,13 @@ def _evaluate_field_deterministic(
     try:
         from form_filler import DeterministicEngine
         from app.services.form_guards import FormHaltException
-        expected = DeterministicEngine.solve(label, [val] if ftype in ("radio", "select", "toggle", "checkbox") else None, is_required=is_req)
+        expected = DeterministicEngine.solve(
+            label,
+            [val] if ftype in ("radio", "select", "toggle", "checkbox") else None,
+            is_required=is_req,
+            parent_question=parent_question,
+            parent_answer=parent_answer,
+        )
         if expected is not None and str(expected).strip().lower() == val_low:
             return _pass(f"Matches canonical DeterministicEngine rule ('{expected}')")
         if expected is not None and str(expected).strip().lower() != val_low:
@@ -387,7 +395,24 @@ def run_presubmit_review(
       }
     """
     profile_strings = _collect_profile_strings(profile or {})
-    verdicts = [_evaluate_field_deterministic(f, profile, profile_strings) for f in (fields or [])]
+    verdicts = []
+    prev_q: Optional[str] = None
+    prev_val: Optional[str] = None
+    for f in (fields or []):
+        verdicts.append(
+            _evaluate_field_deterministic(
+                f,
+                profile,
+                profile_strings,
+                parent_question=prev_q,
+                parent_answer=prev_val,
+            )
+        )
+        f_lbl = (f.get("label") or f.get("name") or "").strip()
+        f_val = str(f.get("value") if f.get("value") is not None else "").strip()
+        if f_lbl and f_val:
+            prev_q = f_lbl
+            prev_val = f_val
     failures = [v for v in verdicts if v["verdict"] in ("FAIL", "UNCERTAIN")]
     passed = len(failures) == 0
 
