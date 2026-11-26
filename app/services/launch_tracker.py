@@ -172,11 +172,19 @@ class LaunchTracker:
                 status_upper = "FAILED"
 
         records = self._read_records()
+        # Match the MOST RECENT unresolved launch with this launch_id (reversed order).
+        # Previously, forward iteration matched an old historical entry with the same ATS job token,
+        # leaving the newest LAUNCHED entry unresolved until check_stalled_launches() flipped it to STALLED.
         target_entry = None
-        for r in records:
-            if r.get("launch_id") == launch_id:
+        for r in reversed(records):
+            if r.get("launch_id") == launch_id and (r.get("status") == "LAUNCHED" or not r.get("terminal_outcome")):
                 target_entry = r
                 break
+        if target_entry is None:
+            for r in reversed(records):
+                if r.get("launch_id") == launch_id:
+                    target_entry = r
+                    break
 
         now_iso = datetime.now(timezone.utc).isoformat()
         is_pending = (photo_status == "photo_pending" or receipt_msg_id == "photo_pending")
@@ -279,7 +287,7 @@ class LaunchTracker:
     def update_launch_step(self, launch_id: str, step: str, field: Optional[str] = None):
         """Record current execution step and optional field on the active launch entry."""
         records = self._read_records()
-        for r in records:
+        for r in reversed(records):
             if r.get("launch_id") == launch_id:
                 r["step"] = step
                 if field:

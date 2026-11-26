@@ -61,28 +61,31 @@ CANDIDATE_FACTS: Dict[str, Dict[str, Any]] = {
     "EXP_AWS_VALIDATION": {
         "source": "resume",
         "kinds": ["experience", "project", "bug", "challenge", "fit", "company", "aws", "data", "etl", "python"],
-        "anchors": ["amazon web services", "aws", "step functions", "aws batch", "batch", "s3", "etl", "validation"],
+        "anchors": ["amazon web services", "aws", "step functions", "aws batch", "batch", "lambda", "s3", "etl", "validation"],
         "achievements": [
             "race condition", "race conditions", "validation framework", "automated validation",
             "invalid data", "pipeline stability", "etl pipeline", "step functions",
+            "stops invalid data before it reaches production",
         ],
         "metrics": [],
         "tags": [
-            "aws", "python", "etl", "data", "pipeline", "pipelines", "validation", "batch", "step functions", "s3",
+            "aws", "python", "etl", "data", "pipeline", "pipelines", "validation", "batch", "step functions", "lambda", "s3",
             "reliability", "workflow", "orchestration", "backend", "distributed", "automation", "deterministic",
             "bug", "debug", "debugged", "race condition", "challenge", "challenging", "quality", "testing",
         ],
-        "text": "As a Software Development Engineer at Amazon Web Services (AWS Infra Supply Chain, Mar 2025 - Mar 2026), "
-                "I eliminated race conditions in AWS Batch and designed an automated validation framework using AWS Step "
-                "Functions and S3 that prevented invalid data from reaching production ETL pipelines.",
+        "text": "As a Software Dev Engineer at Amazon Web Services (Arlington, VA, Mar 2025 - Mar 2026), "
+                "I built an automated validation framework with Step Functions, Batch, Lambda, and S3 that stops "
+                "invalid data before it reaches production, and fixed race conditions in AWS Batch jobs that were "
+                "failing ETL pipelines intermittently.",
     },
     "EXP_AWS_MONITORING": {
         "source": "resume",
         "kinds": ["experience", "bug", "challenge", "incident", "fit", "company", "aws", "monitoring"],
-        "anchors": ["amazon web services", "aws", "cloudwatch", "lambda", "monitoring", "alerting", "mean time to detect"],
+        "anchors": ["amazon web services", "aws", "cloudwatch", "lambda", "monitoring", "alerting", "failure detection"],
         "achievements": [
-            "hours to minutes", "mean time to detect", "real-time monitoring", "real time monitoring",
-            "workflow failures", "monitoring and alerting", "detect workflow failures",
+            "hours to minutes", "cut failure detection from hours to minutes", "mean time to detect",
+            "real-time monitoring", "real time monitoring", "workflow failures", "monitoring and alerting",
+            "detect workflow failures", "failure detection",
         ],
         "metrics": ["hours to minutes"],
         "tags": [
@@ -90,25 +93,25 @@ CANDIDATE_FACTS: Dict[str, Dict[str, Any]] = {
             "failures", "workflow", "realtime", "real-time", "production", "incident", "diagnostics", "compute",
             "bug", "debug", "reliability", "downtime",
         ],
-        "text": "At Amazon Web Services (AWS Infra Supply Chain), I reduced mean time to detect workflow failures from "
-                "hours to minutes by implementing real-time monitoring and alerting with CloudWatch and Lambda.",
+        "text": "At Amazon Web Services (Mar 2025 - Mar 2026), I built monitoring and alerting with CloudWatch and "
+                "Lambda that cut failure detection from hours to minutes.",
     },
     "EXP_AWS_MCP_ASSISTANT": {
         "source": "resume",
         "kinds": ["experience", "project", "ai", "fit", "company", "llm", "mcp"],
-        "anchors": ["amazon web services", "aws", "mcp", "ticketing assistant", "claude", "issue triage"],
+        "anchors": ["amazon web services", "aws", "mcp", "ticketing assistant", "issue triage", "on-call"],
         "achievements": [
-            "ticketing assistant", "issue triage", "mcp-based", "mcp based", "automate issue triage",
-            "accelerate testing and debugging", "testing and debugging", "rapid code generation",
+            "ticketing assistant", "issue triage", "mcp-based", "mcp based", "handles issue triage",
+            "automate issue triage", "on-call rotations", "internal mcp-based ai ticketing assistant",
         ],
         "metrics": [],
         "tags": [
             "ai", "llm", "mcp", "claude", "agent", "agents", "agentic", "assistant", "automation", "triage",
-            "debugging", "testing", "workflow", "connectors", "skills", "context", "tooling", "python",
+            "on-call", "debugging", "testing", "workflow", "connectors", "skills", "context", "tooling", "python",
             "generative ai", "coding tools",
         ],
-        "text": "At Amazon Web Services, I co-developed an internal MCP-based AI ticketing assistant to automate issue "
-                "triage and leveraged Claude to accelerate testing and debugging.",
+        "text": "At Amazon Web Services (Mar 2025 - Mar 2026), I helped build an internal MCP-based AI ticketing "
+                "assistant that handles issue triage during on-call rotations.",
     },
     "EXP_AWS_BACKEND": {
         "source": "resume",
@@ -116,39 +119,39 @@ CANDIDATE_FACTS: Dict[str, Dict[str, Any]] = {
         "anchors": ["amazon web services", "aws", "restful", "api gateway", "iam", "backend services"],
         "achievements": [
             "backend services", "restful apis", "restful api", "secure access", "api gateway",
-            "enforcing secure access", "system performance",
+            "access controlled through iam", "enforcing secure access", "system performance",
         ],
         "metrics": [],
         "tags": [
             "aws", "api", "apis", "restful", "backend", "iam", "api gateway", "security", "scalable",
             "services", "integrations", "webhook", "microservices", "fullstack", "full-stack", "software",
         ],
-        "text": "At Amazon Web Services, I developed and maintained scalable backend services and RESTful APIs while "
-                "enforcing secure access with AWS IAM and API Gateway.",
+        "text": "At Amazon Web Services, I built and maintained backend services and RESTful APIs, with access "
+                "controlled through IAM and API Gateway.",
     },
     "EXP_AWS_ONCALL_SQL": {
         "source": "resume",
         "kinds": ["experience", "bug", "incident", "challenge", "sql", "data"],
         "anchors": ["amazon web services", "aws", "redshift", "postgresql", "sql", "on-call", "incident"],
         "achievements": [
-            "incident resolution", "on-call", "on call", "optimizing sql", "sql queries", "redshift",
-            "debugging and triage time", "triage time",
+            "incident resolution", "on-call", "on call", "optimizing sql", "rewriting redshift and postgresql",
+            "sql queries", "redshift", "postgresql", "performance bottlenecks", "debugging and triage time",
         ],
         "metrics": [],
         "tags": [
             "sql", "redshift", "postgresql", "database", "relational", "warehouse", "query", "queries", "on-call",
-            "incident", "triage", "debugging", "bug", "analytics", "data", "optimization",
+            "incident", "triage", "debugging", "bug", "analytics", "data", "optimization", "bottlenecks",
         ],
-        "text": "During on-call rotations at Amazon Web Services, I accelerated incident resolution by optimizing SQL "
-                "queries and analyzing Amazon Redshift and PostgreSQL data.",
+        "text": "At Amazon Web Services, I diagnosed performance bottlenecks in slow on-call incidents by rewriting "
+                "Redshift and PostgreSQL queries.",
     },
     "EXP_AWS_SUPPLY_CHAIN": {
         "source": "resume",
         "kinds": ["experience", "data", "python", "fit", "company"],
         "anchors": ["amazon web services", "aws", "supply chain", "reporting", "inventory", "fulfillment", "python"],
         "achievements": [
-            "supply chain reporting", "data analysis pipelines", "inventory anomalies", "fulfillment visibility",
-            "supply chain",
+            "supply chain reporting", "data analysis", "inventory anomalies", "fulfillment visibility",
+            "supply chain", "infra supply chain automation",
         ],
         "metrics": [],
         "tags": [
@@ -156,113 +159,143 @@ CANDIDATE_FACTS: Dict[str, Dict[str, Any]] = {
             "anomalies", "operations", "metrics", "business", "business systems", "finance", "reconciliation",
             "logistics", "internal tools",
         ],
-        "text": "On the AWS Infra Supply Chain team, I automated supply chain reporting and data analysis pipelines "
-                "using Python and dashboards to identify inventory anomalies and improve fulfillment visibility.",
+        "text": "At Amazon Web Services, I automated supply chain reporting and data analysis with Python scripts "
+                "for infra supply chain automation, flagging inventory anomalies and improving fulfillment visibility.",
     },
     "EXP_GMU_RA": {
         "source": "resume",
         "kinds": ["experience", "ai", "nlp", "python", "research", "education"],
-        "anchors": ["george mason university", "gmu", "research assistant", "nlp", "spacy", "nltk"],
+        "anchors": ["george mason university", "gmu", "research assistant", "nlp", "spacy", "nltk", "docker", "jupyter"],
         "achievements": [
-            "research assistant", "assessment methods", "large-scale assessment", "mentored students",
-            "spacy", "nltk", "nlp pipelines", "nlp and data analysis",
+            "research assistant", "assessment methods", "large-scale automated assessment", "mentored students",
+            "spacy", "nltk", "nlp pipelines", "nlp and data analysis", "shared docker and jupyter",
         ],
         "metrics": [],
         "tags": [
             "python", "nlp", "spacy", "nltk", "research", "machine learning", "ai", "evaluation", "assessment",
             "data analysis", "text", "language", "clinical", "conversations", "documentation", "teaching",
-            "learning", "students", "education", "mentorship",
+            "learning", "students", "education", "mentorship", "docker", "jupyter",
         ],
-        "text": "As a Research Assistant at George Mason University (Jun 2024 - Feb 2025), I conducted applied data "
-                "analysis research improving large-scale assessment methods and mentored students in NLP pipelines "
-                "using Python (spaCy, NLTK).",
+        "text": "As a Research Assistant at George Mason University (Fairfax, VA, Jun 2024 - Feb 2025), I ran data "
+                "analysis and ML research on large-scale automated assessment methods, mentored students in NLP and "
+                "data analysis with Python (spaCy, NLTK), and set up shared Docker and Jupyter environments.",
     },
     "EXP_TALVIRO": {
         "source": "resume/profile.json",
         "kinds": ["experience", "backend", "sql", "docker", "fit"],
-        "anchors": ["talviro", "restful", "sql", "docker", "claude"],
+        "anchors": ["talviro", "restful", "sql", "docker", "claude", "jira", "agile", "ci"],
         "achievements": [
-            "talviro", "restful apis", "complex sql queries", "containerize services with docker",
-            "consistent development environments",
+            "talviro", "high-throughput restful apis", "restful apis", "complex sql queries",
+            "containerized backend services with docker", "containerize services with docker",
+            "root-cause analysis", "ship features end to end", "consistent development environments",
         ],
         "metrics": [],
         "tags": [
             "python", "sql", "api", "apis", "restful", "docker", "backend", "claude", "compliance", "software",
-            "testing", "debugging", "sdlc",
+            "testing", "debugging", "sdlc", "agile", "jira", "ci", "ci/cd", "root-cause analysis", "production",
         ],
-        "text": "As a Software Developer at Talviro INC (Jun 2026 - Present), I build secure backend features, "
-                "optimize RESTful APIs and complex SQL queries, and containerize services with Docker.",
+        "text": "As a Software Developer at Talviro INC (Remote, Miami, FL, Jun 2026 - Present), I build and optimize "
+                "high-throughput RESTful APIs and complex SQL queries, containerize backend services with Docker "
+                "across CI pipelines, ship features end to end, own testing and root-cause debugging, and use Claude "
+                "daily while reviewing and testing everything before it ships.",
     },
     "EXP_SUBHASH_SNOWFLAKE": {
         "source": "resume/portfolio",
         "kinds": ["experience", "data", "sql", "python", "snowflake", "finance"],
         "anchors": ["subhash construction", "snowflake", "power bi", "tableau", "financial", "sql", "python"],
         "achievements": [
-            "subhash construction", "25%", "power bi", "tableau", "snowflake data models",
-            "operational and financial data", "improving efficiency by 25%",
+            "subhash construction", "25%", "20%", "power bi", "tableau", "snowflake", "ctes", "window functions",
+            "operational and financial data", "improving efficiency by 25%", "cutting operational inefficiencies by 20%",
         ],
-        "metrics": ["25%"],
+        "metrics": ["25%", "20%"],
         "tags": [
             "snowflake", "sql", "python", "finance", "financial", "operational", "kpi", "metrics",
             "tableau", "power bi", "reporting", "warehouse", "semantic", "accounting", "data modeling",
-            "business analyst", "business systems",
+            "business analyst", "business systems", "ctes", "window functions",
         ],
-        "text": "As a Business Analyst at Subhash Construction, I analyzed operational and financial data with Python "
-                "and SQL (improving workflow efficiency by 25%) and built Tableau and Power BI KPI dashboards backed "
-                "by Snowflake data models.",
+        "text": "As a Business Analyst at Subhash Construction (Mumbai, India, Jan 2021 - Jan 2022), I analyzed "
+                "operational and financial data with SQL and Python (improving efficiency by 25% and cutting "
+                "operational inefficiencies by 20%) and built Power BI and Tableau KPI dashboards on Snowflake models "
+                "with advanced SQL (CTEs, window functions).",
     },
     "PROJ_JOB_SCOUT": {
-        "source": "github/portfolio",
+        "source": "resume/github/portfolio",
         "kinds": ["project", "ai", "python", "challenge", "fit", "company", "llm"],
-        "anchors": ["autonomous ai job scout", "playwright", "fastapi", "gemini", "greenhouse", "ashby", "lever"],
+        "anchors": ["autonomous ai job scout", "google antigravity", "playwright", "fastapi", "gemini", "pypdf2", "sqlite", "telegram", "greenhouse", "ashby", "lever"],
         "achievements": [
-            "autonomous ai job scout", "job application engine", "playwright", "resume-grounding",
-            "factual guardrails", "factual resume-grounding guardrails", "greenhouse, lever, and ashby",
-            "deterministic rule engine",
+            "autonomous ai job scout", "google antigravity", "job application engine", "playwright",
+            "pre-submit verification gate", "resume-grounding", "factual guardrails", "greenhouse, lever, and ashby",
+            "audit trail in sqlite", "evidence receipts on telegram", "deterministic rule engine",
         ],
-        "metrics": ["150-second", "150"],
+        "metrics": ["24/7", "150-second", "150"],
         "tags": [
-            "python", "javascript", "playwright", "fastapi", "sqlite", "ai", "llm", "gemini", "agent", "agents",
-            "autonomous", "automation", "api", "apis", "integrations", "deterministic", "guardrails", "workflow",
-            "project", "proudest", "challenging", "fullstack", "full-stack", "rag",
+            "python", "playwright", "gemini", "pypdf2", "fastapi", "sqlite", "telegram", "ai", "llm", "agent",
+            "agents", "agentic", "autonomous", "automation", "api", "apis", "integrations", "deterministic",
+            "guardrails", "workflow", "project", "proudest", "challenging", "fullstack", "full-stack", "rag",
+            "google antigravity", "verification", "audit",
         ],
-        "text": "I built Autonomous AI Job Scout, an end-to-end Python, FastAPI, and Playwright autonomous agent that "
-                "integrates across Greenhouse, Lever, and Ashby APIs and pairs a deterministic rule engine with LLM "
-                "(Gemini) workflows under strict factual resume-grounding guardrails.",
+        "text": "I built Autonomous AI Job Scout using Google Antigravity, an autonomous agent that applies to jobs "
+                "on Greenhouse, Lever, and Ashby 24/7 where every answer is written only from my real resume, GitHub, "
+                "and portfolio and audited by a pre-submit verification gate before anything is sent, with a full "
+                "audit trail in SQLite and evidence receipts on Telegram (Tech: Python, Playwright, Gemini, PyPDF2, "
+                "FastAPI, SQLite, Telegram).",
     },
     "PROJ_STOCK_ANALYZER": {
-        "source": "github/portfolio",
+        "source": "resume/github/portfolio",
         "kinds": ["project", "python", "javascript", "data", "finance", "challenge"],
-        "anchors": ["algorithmic stock analyzer", "discounted cash flow", "dcf", "yfinance", "scipy", "pandas", "flask"],
+        "anchors": ["algorithmic stock analyzer", "dcf", "sec edgar", "yfinance", "scipy", "pandas", "flask", "telegram"],
         "achievements": [
-            "algorithmic stock analyzer", "discounted cash flow", "dcf", "yfinance", "scipy",
-            "technical indicator", "multi-scenario", "financial statement data",
+            "algorithmic stock analyzer", "discounted cash flow", "dcf", "sec edgar", "yfinance", "scipy",
+            "find_peaks", "wilder's rsi", "margin of safety", "telegram bot", "verified numbers",
         ],
         "metrics": ["50", "200", "14"],
         "tags": [
-            "python", "flask", "javascript", "pandas", "numpy", "scipy", "finance", "financial", "valuation",
-            "dcf", "data", "pipeline", "sanitization", "metrics", "analytics", "dashboard", "quantitative",
-            "project", "proudest", "challenging", "fullstack", "full-stack",
+            "python", "flask", "javascript", "pandas", "numpy", "scipy", "yfinance", "sec edgar", "telegram",
+            "finance", "financial", "valuation", "dcf", "data", "pipeline", "metrics", "analytics", "dashboard",
+            "quantitative", "project", "proudest", "challenging", "fullstack", "full-stack", "llm",
         ],
-        "text": "I built Algorithmic Stock Analyzer, a Python (Flask, pandas, NumPy, SciPy) and JavaScript financial "
-                "analysis platform that normalizes live market and financial statement data and runs multi-scenario "
-                "Discounted Cash Flow valuations and technical indicator scans.",
+        "text": "I built Algorithmic Stock Analyzer, a full-stack market intelligence platform on a Flask API with "
+                "live yfinance quotes, Wilder's RSI, MACD, SMA, SciPy find_peaks chart patterns, and a DCF engine "
+                "on audited SEC EDGAR fundamentals with a margin of safety, plus a Telegram /scan bot and an LLM "
+                "layer that answers only from the verified numbers (Tech: Python, Flask, yfinance, pandas, SciPy, "
+                "SEC EDGAR, JavaScript, Telegram).",
     },
     "PROJ_BILL_SPLITTER": {
-        "source": "github/portfolio",
+        "source": "resume/github/portfolio",
         "kinds": ["project", "javascript", "frontend"],
-        "anchors": ["itemized bill splitter", "javascript", "tailwind", "proportional", "tax", "tip"],
+        "anchors": ["itemized bill", "expense splitter", "javascript", "tailwind", "es6", "proportional", "tax", "tip"],
         "achievements": [
-            "itemized bill splitter", "proportional tax", "zero-dependency client-side javascript",
-            "shared expenses",
+            "itemized bill splitter", "itemized bill & expense splitter", "proportional tax",
+            "zero-dependency", "cent-exact rounding", "under 50ms", "shared expenses",
         ],
-        "metrics": ["100%"],
+        "metrics": ["50ms", "4", "100%"],
         "tags": [
-            "javascript", "html", "css", "tailwind", "frontend", "web", "expense", "finance", "algorithm",
-            "project", "ui",
+            "javascript", "es6", "html", "css", "tailwind", "frontend", "web", "expense", "finance", "algorithm",
+            "project", "ui", "csv",
         ],
-        "text": "I built Itemized Bill Splitter, a zero-dependency client-side JavaScript and Tailwind CSS web "
-                "application that computes proportional tax, tip, and fee allocations across shared expenses.",
+        "text": "I built Itemized Bill & Expense Splitter, a zero-dependency browser-only bill splitter in Vanilla "
+                "ES6+ and Tailwind CSS supporting 4 split modes (Equal, Exact, Percent, Weighted Shares), cent-exact "
+                "rounding, a real-time receipt audit log, and WhatsApp and CSV export, loading in under 50ms.",
+    },
+    "SKILLS_STACK": {
+        "source": "resume",
+        "kinds": ["experience", "fit", "skills", "languages", "backend", "data", "ai"],
+        "anchors": ["python", "sql", "c++", "javascript", "typescript", "java", "r", "aws", "docker", "playwright", "fastapi"],
+        "achievements": [
+            "c++", "typescript", "python", "sql", "javascript", "java", "postgresql", "mongodb", "redshift",
+            "snowflake", "sqlite", "dynamodb", "react.js", "node.js", "express.js", "flask", "fastapi",
+        ],
+        "metrics": [],
+        "tags": [
+            "python", "sql", "c++", "cpp", "javascript", "typescript", "java", "r", "postgresql", "mongodb",
+            "redshift", "snowflake", "sqlite", "dynamodb", "aws", "react", "react.js", "node.js", "express.js",
+            "flask", "fastapi", "pandas", "numpy", "scipy", "scikit-learn", "playwright", "docker", "git",
+            "jira", "linux", "ci/cd", "mcp", "rag", "llm", "agentic ai", "codex",
+        ],
+        "text": "My technical stack spans Python, SQL, C++, JavaScript, TypeScript, Java, and R; databases including "
+                "PostgreSQL, MongoDB, Redshift, Snowflake, SQLite, and DynamoDB; AWS (S3, EC2, Lambda, Step Functions, "
+                "Batch, API Gateway, CloudWatch, IAM, ECS, EBS); and React.js, Node.js, Express.js, Flask, FastAPI, "
+                "Playwright, Docker, Git, Jira, and CI/CD.",
     },
     "EDU": {
         "source": "resume/profile.json",
@@ -274,8 +307,8 @@ CANDIDATE_FACTS: Dict[str, Dict[str, Any]] = {
         ],
         "metrics": ["3.71", "3.3", "2023", "2024", "2018", "2022", "2+", "2"],
         "tags": ["education", "master", "degree", "gmu", "george mason", "information systems", "gpa"],
-        "text": "I hold a Master of Science in Information Systems from George Mason University (GPA 3.71, May 2024) "
-                "and a Bachelor of Engineering in Information Technology from the University of Mumbai (Aug 2022).",
+        "text": "I hold a Master of Science in Information Systems from George Mason University (GPA 3.71/4.0, Jan 2023 - May 2024) "
+                "and a Bachelor of Engineering in Information Technology from the University of Mumbai (GPA 3.3/4.0, Aug 2018 - Aug 2022).",
     },
 }
 

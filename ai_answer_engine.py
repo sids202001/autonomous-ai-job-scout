@@ -75,22 +75,22 @@ CURRENT_LOCATION = "Miami, Florida (Remote)"
 CURRENT_START_DATE = "06/2026"
 CURRENT_END_DATE = "Present"
 CURRENT_EXPERIENCE_DESCRIPTION = (
-    "Actively developing and deploying software features, translating core business requirements into secure, compliant technical solutions. "
-    "Accelerated daily testing and debugging using Claude for rapid code generation and complex error analysis. "
-    "Contributing to the optimization of secure RESTful APIs and complex SQL queries to enhance backend performance. "
-    "Utilizing Docker to maintain consistent development environments and support reliable feature delivery within the SDLC."
+    "Built and optimized high-throughput RESTful APIs and complex SQL queries, reducing database execution overhead. "
+    "Containerized backend services with Docker for reproducible environments across CI pipelines. "
+    "Ship features end to end, from requirements to deployed backend services, owning testing and root-cause debugging. "
+    "Worked in an Agile team tracking tasks in Jira, using Claude daily while reviewing and testing everything before it ships."
 )
 
 PREVIOUS_COMPANY = "Amazon Web Services"
 PREVIOUS_TITLE = "Software Dev Engineer"
-PREVIOUS_LOCATION = "Arlington, Virginia"
+PREVIOUS_LOCATION = "Arlington, VA"
 PREVIOUS_START_DATE = "03/2025"
 PREVIOUS_END_DATE = "03/2026"
 PREVIOUS_EXPERIENCE_DESCRIPTION = (
-    "Prevented invalid data and improved ETL pipeline stability by eliminating race conditions in AWS Batch and designing an automated validation framework using AWS Step Functions and S3. "
-    "Reduced mean time to detect workflow failures from hours to minutes by implementing real-time monitoring and alerting using CloudWatch and Lambda. "
-    "Developed and maintained scalable backend services and RESTful APIs, improving system performance and enforcing secure access using AWS IAM and API Gateway. "
-    "Accelerated incident resolution during on-call by optimizing SQL queries and analyzing Amazon Redshift data, reducing debugging and triage time."
+    "Built an automated validation framework with Step Functions, Batch, Lambda, and S3 that stops invalid data before it reaches production, and fixed race conditions in AWS Batch jobs failing ETL pipelines intermittently. "
+    "Built monitoring and alerting with CloudWatch and Lambda that cut failure detection from hours to minutes. "
+    "Helped build an internal MCP-based AI ticketing assistant that handles issue triage during on-call rotations. "
+    "Diagnosed performance bottlenecks in slow on-call incidents by rewriting Redshift and PostgreSQL queries, and built backend services and RESTful APIs with IAM and API Gateway."
 )
 
 NOTICE_PERIOD = "2 weeks"
@@ -103,48 +103,55 @@ WHATSAPP = "No"
 
 # 2. RESUME TEXT
 RESUME_TEXT = """Siddhesh Santosh Sawant
-United States • +1 (445) 208-2299
+United States | +1 (445) 208-2299
 
 Professional Summary
-Software & Data Engineer with 2+ years of experience building scalable backend systems, data pipelines, and cloud-native workflows on AWS.
-Proven track record of improving system reliability, preventing data quality issues, and reducing operational downtime through automated validation, monitoring, and workflow orchestration. Strong in Python, SQL, and distributed systems, with hands-on experience in AWS Services.
-Adept at leveraging modern AI tools to accelerate feature development and translate complex data into actionable business insights and autonomous solutions.
+Software & Data Engineer with backend and data experience at AWS and Talviro, from automated validation frameworks to backend features. I take a business problem end to end into clear, well-tested, extensible code that works across multiple components, and I debug production issues down to root cause. AI speeds up my work, it does not do my thinking: I use it daily to code faster, then I verify, test, and take responsibility for the result.
 
 Work Experience
-Software Developer - Talviro INC, United States (Remote) Miami, Florida Jun 2026 – Present
-• Actively developing and deploying software features, translating core business requirements into secure, compliant technical solutions.
-• Accelerated daily testing and debugging using Claude for rapid code generation and complex error analysis.
-• Contributing to the optimization of secure RESTful APIs and complex SQL queries to enhance backend performance.
-• Utilizing Docker to maintain consistent development environments and support reliable feature delivery within the SDLC.
+Talviro INC | Software Developer, Remote (Miami, FL) | Jun 2026 – Present
+• Built and optimized high-throughput RESTful APIs and complex SQL queries, reducing database execution overhead.
+• Containerized backend services with Docker for reproducible environments across CI pipelines.
+• Ship features end to end, from requirements to deployed backend services.
+• Own testing and debugging end to end, including root-cause analysis on production issues.
+• Worked in an Agile team, tracking tasks and issues in Jira.
+• Use Claude daily to build backend changes faster, reviewing and testing everything it writes before it ships.
 
-Software Dev Engineer - Amazon Web Services, United States Arlington, Virginia Mar 2025 – Mar 2026
-• Prevented invalid data and improved ETL pipeline stability by eliminating race conditions in AWS Batch and designing an automated validation framework using AWS Step Functions and S3.
-• Reduced mean time to detect workflow failures from hours to minutes by implementing real-time monitoring and alerting using CloudWatch and Lambda.
-• Accelerated testing and debugging by leveraging Claude for rapid code generation and helped build an internal MCP-based AI ticketing assistant to automate issue triage.
-• Developed and maintained scalable backend services and RESTful APIs, improving system performance and enforcing secure access using AWS IAM and API Gateway.
-• Accelerated incident resolution during on-call by optimizing SQL queries and analyzing Amazon Redshift data, reducing debugging and triage time.
-• Automated supply chain reporting and data analysis pipelines using Python and dashboards, identifying inventory anomalies and improving fulfillment visibility.
+Amazon Web Services | Software Dev Engineer, Arlington, VA | Mar 2025 – Mar 2026
+• Built an automated validation framework with Step Functions, Batch, Lambda, and S3 that stops invalid data before it reaches production.
+• Fixed race conditions in AWS Batch jobs that were failing ETL pipelines intermittently.
+• Automated supply chain reporting and data analysis with Python scripts for infra supply chain automation, flagging inventory anomalies and improving fulfillment visibility.
+• Built monitoring and alerting with CloudWatch and Lambda that cut failure detection from hours to minutes.
+• Helped build an internal MCP-based AI ticketing assistant that handles issue triage during on-call rotations.
+• Diagnosed performance bottlenecks in slow on-call incidents by rewriting Redshift and PostgreSQL queries.
+• Built and maintained backend services and RESTful APIs, with access controlled through IAM and API Gateway.
 
-Research Assistant - George Mason University, United States Fairfax, Virginia Jun 2024 – Feb 2025
-• Conducted data analysis and research in applied information technology, improving large-scale assessment methods.
-• Mentored students in NLP and data analysis using Python (spaCy, NLTK), improving project quality and reproducibility.
+George Mason University | Research Assistant, Fairfax, VA | Jun 2024 – Feb 2025
+• Ran data analysis and ML research on large-scale automated assessment methods.
+• Mentored students in NLP and data analysis with Python (spaCy, NLTK).
+• Set up shared Docker and Jupyter environments so the team's research ran the same way on every machine.
 
-Business Analyst - Subhash Construction, India Mumbai, Maharashtra Jan 2021 – Jan 2022
-• Analyzed operational and financial data using SQL and Python, improving efficiency by 25%.
-• Built Power BI and Tableau dashboards to track KPIs.
+Subhash Construction | Business Analyst, Mumbai, India | Jan 2021 – Jan 2022
+• Analyzed operational and financial data with SQL and Python, improving efficiency by 25% and cutting operational inefficiencies by 20%.
+• Built Power BI and Tableau KPI dashboards on Snowflake models with advanced SQL (CTEs, window functions) covering revenue, cost, and resource use.
+
+Technical Projects
+• Autonomous AI Job Scout: Built an autonomous agent using Google Antigravity that applies to jobs on my behalf, 24/7. Every answer is written only from my real resume, GitHub, and portfolio, and a pre-submit verification gate audits every field before anything is sent. Live on Greenhouse, Lever, and Ashby, with a full audit trail in SQLite and evidence receipts on Telegram. Tech: Python, Playwright, Gemini, PyPDF2, FastAPI, SQLite, Telegram.
+• Algorithmic Stock Analyzer: Full-stack market intelligence platform on a Flask API with live yfinance quotes, Wilder's RSI, MACD, SMA, SciPy find_peaks chart patterns, and a DCF engine on audited SEC EDGAR fundamentals with a margin of safety, plus a Telegram /scan bot and an LLM layer grounded in verified numbers.
+• Itemized Bill & Expense Splitter: Zero-dependency browser-only bill splitter in Vanilla ES6+ and Tailwind CSS with 4 split modes, cent-exact rounding, real-time receipt audit log, and WhatsApp/CSV export (loads in under 50ms).
 
 Education
-• George Mason University Fairfax, Virginia - Master of Science: Information Systems (GPA 3.71/4.0) Jan 2023 - May 2024
-• University of Mumbai - Bachelor of Engineering: Information Technology (GPA 3.3/4) Aug 2018 - Aug 2022
+• George Mason University | M.S. Information Systems, GPA 3.71/4.0 | Jan 2023 – May 2024
+• University of Mumbai | B.E. Information Technology, GPA 3.3/4.0 | Aug 2018 – Aug 2022
 
-Skills Summary
-Languages: Python, SQL, JavaScript, Java, R
-Databases: PostgreSQL, MongoDB, Amazon Redshift, Snowflake, SQLite
-Data & Visualization: Pandas, NumPy, Matplotlib, Plotly, Power BI, Tableau, Excel, SciPy
-Cloud & Data: AWS (S3, EC2, Step Functions, Batch, Lambda, CloudWatch, IAM, API Gateway, Redshift, EBS, ECS, DynamoDB), ETL Pipelines
-Frameworks & Libraries: React.js, Node.js, Express.js
-AI & Developer Tools: Docker, VS Code, Jupyter Notebook, Git
-Systems: Linux/Unix, Windows"""
+Skills
+Languages: Python, SQL, C++, JavaScript, TypeScript, Java, R
+Databases: PostgreSQL, MongoDB, Redshift, Snowflake, SQLite, DynamoDB
+Cloud & Data: AWS (S3, EC2, Lambda, Step Functions, Batch, API Gateway, CloudWatch, IAM, ECS, EBS, Redshift, DynamoDB), ETL Pipelines, Workflow Orchestration, Data Validation, Distributed Systems
+Frameworks: React.js, Node.js, Express.js, Flask, FastAPI, Pandas, NumPy, SciPy, scikit-learn, yfinance, Playwright, PyPDF2
+AI Tools: LLM Integration, Agentic AI, RAG, MCP, Google Antigravity, Model Evaluation, Codex
+Quality & Testing: Automated Validation, Root-Cause Analysis, Production Monitoring, Testing & Debugging
+Tools: Docker, Git, Jira, JSON, Linux/Unix, CI/CD, Power BI, Tableau, Excel, Matplotlib, Plotly, Telegram"""
 
 # Format all facts for AI Prompt
 PROFILE_FACTS = f"""

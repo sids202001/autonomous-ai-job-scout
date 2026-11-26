@@ -782,12 +782,12 @@ async def enumerate_required_fields(page) -> List[Dict[str, Any]]:
             let val = (el.value || "").trim();
             const selectContainer = el.closest(".select__container, .select, .select-shell, [class*='select__container']");
             if (!val && selectContainer) {
-                const singleVal = selectContainer.querySelector(".select__single-value, [class*='singleValue'], [class*='single-value']");
+                const singleVal = selectContainer.querySelector(".select__single-value, .select__multi-value, .select__multi-value__label, [class*='singleValue'], [class*='single-value'], [class*='multiValue'], [class*='multi-value']");
                 if (singleVal && singleVal.innerText.trim()) {
                     val = singleVal.innerText.trim();
                 }
             } else if (!val && card) {
-                const singleVal = card.querySelector(".select__single-value, [class*='singleValue'], [class*='single-value']");
+                const singleVal = card.querySelector(".select__single-value, .select__multi-value, .select__multi-value__label, [class*='singleValue'], [class*='single-value'], [class*='multiValue'], [class*='multi-value']");
                 if (singleVal && singleVal.innerText.trim()) {
                     val = singleVal.innerText.trim();
                 }
@@ -2570,6 +2570,8 @@ class DeterministicEngine:
 
         # --- Full Legal Name ---
         if re.search(r"(state\s*your\s*full\s*legal\s*name|full\s*legal\s*name)", q, re.IGNORECASE):
+            if choices and any(re.match(r"^yes\b", str(c).strip(), re.IGNORECASE) for c in choices):
+                return _yes(choices)
             return pi.get("full_name", "Siddhesh Santosh Sawant")
 
         # --- Languages Fluent In ---
@@ -3065,7 +3067,7 @@ class DeterministicEngine:
             return g
 
         # --- EEO: Race / Ethnicity ---
-        if re.search(r"\b(race|racial|ethnic|ethnicity|demographic)\b", q, re.IGNORECASE) and not re.search(r"race\s*condition", q, re.IGNORECASE):
+        if re.search(r"\b(race|racial|ethnic|ethnicit(?:y|ies)|demographic)\b", q, re.IGNORECASE) and not re.search(r"race\s*condition", q, re.IGNORECASE):
             r_val = comp.get("race_ethnicity", "Asian")
             if choices:
                 # Try matching Asian variants - but NEVER match 'caucasian'
@@ -3882,7 +3884,7 @@ class DynamicResumeEngine:
             return "He / Him"
 
         # 3. CORE INVARIANT: Race / Ethnicity
-        if re.search(r"\b(race|racial|ethnic|ethnicity|demographic)\b", q_low, re.IGNORECASE) and not re.search(r"race\s*condition", q_low, re.IGNORECASE):
+        if re.search(r"\b(race|racial|ethnic|ethnicit(?:y|ies)|demographic)\b", q_low, re.IGNORECASE) and not re.search(r"race\s*condition", q_low, re.IGNORECASE):
             for target in ["south asian", "asian (not hispanic or latino)", "asian"]:
                 for c in clean_choices:
                     c_low = c.lower().strip()
@@ -4035,11 +4037,11 @@ async def upload_resume(target: Union[Page, Frame, FrameLocator]) -> bool:
     Rule 15: Reads back uploaded filename from DOM to affirmatively verify upload.
     Retries once on verification failure; halts with UPLOAD_UNVERIFIED on second failure.
     """
-    resume_path = getattr(config, "RESUME_PATH", "")
+    resume_path = getattr(getattr(config, "settings", None), "RESUME_PATH", "") or getattr(config, "RESUME_PATH", "")
     if not resume_path or not os.path.exists(resume_path):
         for candidate in [
-            os.path.expanduser("~/Downloads/SiddheshSSResume.pdf"),
-            os.path.expanduser("~/Desktop/SiddheshSSResume.pdf"),
+            os.path.expanduser("~/Downloads/SiddheshSresume.pdf"),
+            os.path.expanduser("~/Downloads/SiddheshSResume.pdf"),
             os.path.expanduser("~/Desktop/SiddheshSResume.pdf"),
             os.path.expanduser("~/Downloads/Siddhesh_Sawant_Resume.pdf"),
             Path(__file__).parent / "current_resume.pdf",

@@ -31,7 +31,7 @@ class Settings:
     APPLICANT_FIRST_NAME: str = os.getenv("APPLICANT_FIRST_NAME", "")
     APPLICANT_MIDDLE_NAME: str = os.getenv("APPLICANT_MIDDLE_NAME", "")
     APPLICANT_LAST_NAME: str = os.getenv("APPLICANT_LAST_NAME", "")
-    RESUME_PATH: str = os.getenv("RESUME_PATH", "/Users/siddheshsawant/Downloads/SiddheshSSResume.pdf")
+    RESUME_PATH: str = os.getenv("RESUME_PATH", "/Users/siddheshsawant/Downloads/SiddheshSresume.pdf")
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
     

@@ -237,6 +237,11 @@ def solve_canonical_screening_question(
                 c_s = str(c).strip()
                 if re.search(r"own\s+expense|without\s+assistance|do\s+not\s+require", c_s, re.IGNORECASE):
                     return c_s
+            # General rule: for completion/progress questions, "Not yet!" / "Not yet" / "Have not" maps to No
+            for c in choices:
+                c_s = str(c).strip()
+                if re.match(r"^(?:not\s+yet|haven'?t|i\s+haven'?t|have\s+not|i\s+have\s+not|not\s+started)\b", c_s, re.IGNORECASE):
+                    return c_s
             raise FormHaltException(
                 "UNMAPPED_SCREENING_QUESTION",
                 f"Canonical answer is 'No' for '{q}', but no 'No' option was found among {choices}.",
@@ -295,9 +300,40 @@ def solve_canonical_screening_question(
                     return c_s
         return "Heterosexual"
 
-    # 0e. Transgender -> No
+    # 0e. Transgender -> No; Cisgender/Transgender "I identify as:" -> Cisgender
+    if choices and any(re.search(r"\bcisgender\b", str(c), re.IGNORECASE) for c in choices):
+        for c in choices:
+            c_s = str(c).strip()
+            if re.search(r"\bcisgender\b", c_s, re.IGNORECASE) and not re.search(r"\b(?:non-?cisgender|female|woman)\b", c_s, re.IGNORECASE):
+                return c_s
     if re.search(r"\btransgender\b", q_low):
         return _pick_no()
+
+    # 0e2. Ethnicity / Race (including plural "ethnicities") when choices are offered -> South Asian if offered, else Asian
+    # (When choices is None, defer to form_filler.DeterministicEngine so profile.json compliance_and_eeo.race_ethnicity is read dynamically.)
+    if choices and re.search(r"\b(race|racial|ethnic|ethnicit(?:y|ies))\b", q_low) and not re.search(r"race\s*condition", q_low):
+        for target in ("south asian", "asian (not hispanic or latino)", "asian"):
+            for c in choices:
+                c_s = str(c).strip()
+                c_low = c_s.lower()
+                if "caucasian" in c_low:
+                    continue
+                if target == "asian" and re.search(r"\b(?:east|southeast|west)\s+asian\b", c_low):
+                    continue
+                if target in c_low:
+                    return c_s
+        for c in choices:
+            c_s = str(c).strip()
+            if "asian" in c_s.lower() and "caucasian" not in c_s.lower():
+                return c_s
+
+    # 0e3. Legal name confirmation ("Have you added your full legal name and surname (including any middle names)?") -> Yes
+    if re.search(
+        r"(?:have\s+you\s+(?:added|entered|included|provided|used)|did\s+you\s+(?:add|enter|include|provide|use)).*"
+        r"(?:full\s+legal\s+name|legal\s+name|surname|middle\s+name)",
+        q_low,
+    ):
+        return _pick_yes()
 
     # 0f. Work authorization expiration date -> 07/08/2027
     if re.search(r"work\s*authorization.*expir|authorization\s*expir|opt.*expir", q_low):
@@ -331,14 +367,11 @@ def solve_canonical_screening_question(
     if re.search(r"are\s+you\s+currently\s+(?:a|an)\s+[\w\s]{1,30}\s+employee|non-?compet(?:e|ition)\s+agreement", q_low):
         return _pick_no()
 
-    # 4b. Currently based / located in the United States -> Yes (from profile.json country=United States)
+    # 4b. Currently based / located in the United States, or legal rights to work in the US -> Yes
     if re.search(r"(?:currently\s+)?(?:based|located|residing|living)\s+in\s+the\s+(?:united\s+states|u\.?s\.?a?\.?)\b", q_low):
-        if choices:
-            for c in choices:
-                c_s = str(c).strip()
-                if re.match(r"^(?:yes|true)\b", c_s, re.IGNORECASE) and not re.search(r"\bno\b", c_s, re.IGNORECASE):
-                    return c_s
-        return "Yes"
+        return _pick_yes()
+    if re.search(r"legal\s+rights?\s+to\s+work\s+in\s+(?:the\s+)?(?:united\s+states|u\.?s\.?a?\.?)\b", q_low):
+        return _pick_yes()
 
     # 5. HRIS/ATS extraction or GCP production checkboxes -> 'None of the above' if offered, else HALT
     if re.search(r"(?:hris|ats\s*data|workday.*greenhouse|gcp\s*(?:production|experience|tools|bigquery))", q_low):
@@ -727,6 +760,8 @@ def is_home_address_field(label: str) -> bool:
 HOW_HEARD_PATTERNS = [
     r"how\s*did\s*you\s*(?:hear|learn|find)",
     r"where\s*did\s*you\s*(?:hear|see|find)",
+    r"(?:from\s+)?which\s+(?:job\s+)?(?:site|board|source|platform|website)\s+did\s+you\s+(?:see|find|hear|learn)",
+    r"which\s+(?:job\s+)?(?:site|board|source)\s+(?:led|brought)\s+you",
     r"source\s*of\s*application",
     r"referr(?:al|ed)\s*source",
     r"application\s*source",
@@ -943,12 +978,13 @@ def solve_consent_question(question: str, choices: Optional[List[str]] = None) -
 def format_missing_info_request(code: str, question: str, url: str, company: str, choices: Optional[List[str]] = None) -> str:
     """
     Formats the EXACTLY ONE human-actionable MISSING_INFO_REQUEST message per application.
-    Quotes question verbatim + posting + options offered (24h window).
+    Uses plain text (no legacy Telegram Markdown) so URLs with underscores (e.g. job_app),
+    questions, and option lists never trigger Telegram HTTP 400 Bad Request errors.
     """
     choices_str = ""
     if choices:
         choices_list = "\n".join(f"  • {c}" for c in choices)
-        choices_str = f"\n*Options Offered:*\n{choices_list}\n"
+        choices_str = f"\nOptions Offered:\n{choices_list}\n"
 
     BOT_SIDE_DEFECT_CODES = {
         "BANNER_BLOCKED",
@@ -960,50 +996,50 @@ def format_missing_info_request(code: str, question: str, url: str, company: str
     guidance = ""
     if code in BOT_SIDE_DEFECT_CODES:
         guidance = (
-            f"🛠️ *Bot-Side Defect ({code}) — Action NOT Required From You*\n"
+            f"🛠️ Bot-Side Defect ({code}) — Action NOT Required From You\n"
             f"This is a bot-side defect; you are NOT expected to answer this alert. "
             f"The application is safely parked and will become retryable once the bot fix deploys."
         )
     elif code == "TRAVEL_DECISION_REQUIRED":
-        guidance = "⚠️ *Action Required: Travel Requirement Decision Needed*\nStanding policy: No canonical travel willingness answer is on file. Halting without guessing."
+        guidance = "⚠️ Action Required: Travel Requirement Decision Needed\nStanding policy: No canonical travel willingness answer is on file. Halting without guessing."
     elif code == "UNMAPPED_SCREENING_QUESTION":
-        guidance = "⚠️ *Action Required: Unmapped Screening Question*\nStanding policy (No Guessing): No canonical answer exists in profile.json for this question. Halting without guessing."
+        guidance = "⚠️ Action Required: Unmapped Screening Question\nStanding policy (No Guessing): No canonical answer exists in profile.json for this question. Halting without guessing."
     elif code == "RELOCATION_DECISION_REQUIRED":
-        guidance = "⚠️ *Action Required: Relocation / In-Office Decision Needed*\nStanding policy: The bot never guesses or assumes your relocation or in-office willingness."
+        guidance = "⚠️ Action Required: Relocation / In-Office Decision Needed\nStanding policy: The bot never guesses or assumes your relocation or in-office willingness."
     elif code in ["HUB_NOT_NEAR_RESIDENCE", "PROXIMITY_REQUIREMENT_UNMET"]:
-        guidance = "⚠️ *Action Required: Office Hub / Proximity Decision Needed*\nStanding policy: The bot answers proximity questions truthfully from your profile location (Washington, DC). No DC metro hub or truthful negative/remote option is available among choices."
+        guidance = "⚠️ Action Required: Office Hub / Proximity Decision Needed\nStanding policy: The bot answers proximity questions truthfully from your profile location (Washington, DC). No DC metro hub or truthful negative/remote option is available among choices."
     elif code == "RELOCATION_ASSISTANCE_HALT":
-        guidance = "⚠️ *Action Required: Relocation Assistance Question Encountered*\nStanding policy: The bot does not store or assume relocation assistance preferences. Halting for human answer."
+        guidance = "⚠️ Action Required: Relocation Assistance Question Encountered\nStanding policy: The bot does not store or assume relocation assistance preferences. Halting for human answer."
     elif code == "RELOCATION_TIMING_HALT":
-        guidance = "⚠️ *Action Required: Relocation Timing Question Encountered*\nStanding policy: The bot does not store or assume relocation move timelines. Halting for human answer."
+        guidance = "⚠️ Action Required: Relocation Timing Question Encountered\nStanding policy: The bot does not store or assume relocation move timelines. Halting for human answer."
     elif code == "REMOTE_WILLINGNESS_HALT":
-        guidance = "⚠️ *Action Required: Remote Work Preference Question Encountered*\nStanding policy: The bot does not store or assume remote work preferences. Halting for human answer."
+        guidance = "⚠️ Action Required: Remote Work Preference Question Encountered\nStanding policy: The bot does not store or assume remote work preferences. Halting for human answer."
     elif code == "VISA_OPTION_MISSING":
-        guidance = "⚠️ *Action Required: Visa Option Missing*\nForm does not offer H-1B among available options. The bot will not guess an incorrect visa type."
+        guidance = "⚠️ Action Required: Visa Option Missing\nForm does not offer H-1B among available options. The bot will not guess an incorrect visa type."
     elif code == "ADDRESS_REQUIRED":
-        guidance = "⚠️ *Action Required: Street Address Required*\nStanding policy: The bot never stores or guesses your home street address."
+        guidance = "⚠️ Action Required: Street Address Required\nStanding policy: The bot never stores or guesses your home street address."
     elif code == "PREMISE_MISMATCH":
-        guidance = "⚠️ *Action Required: Contradictory Question Premise*\nQuestion premise contradicts your profile (e.g. international or veteran branch)."
+        guidance = "⚠️ Action Required: Contradictory Question Premise\nQuestion premise contradicts your profile (e.g. international or veteran branch)."
     elif code == "SOURCE_OPTION_MISSING":
-        guidance = "⚠️ *Action Required: Application Source Option Missing*\nDropdown lacks approved 'Company website' or 'Job board' options (LinkedIn/referral banned)."
+        guidance = "⚠️ Action Required: Application Source Option Missing\nDropdown lacks approved 'Company website' or 'Job board' options (LinkedIn/referral banned)."
     elif code == "CONSENT_AMBIGUOUS":
-        guidance = "⚠️ *Action Required: Ambiguous Consent Checkbox*\nForm bundles application status updates with marketing/promotions in a single checkbox."
+        guidance = "⚠️ Action Required: Ambiguous Consent Checkbox\nForm bundles application status updates with marketing/promotions in a single checkbox."
     elif code == "ESSAY_HALT":
-        guidance = "⚠️ *Action Required: Screening Essay / Rating Required*\nStanding policy: The bot never generates subjective essays, stories, or proficiency ratings."
+        guidance = "⚠️ Action Required: Screening Essay / Rating Required\nStanding policy: The bot never generates subjective essays, stories, or proficiency ratings."
     else:
-        guidance = f"⚠️ *Action Required: Missing Information ({code})*"
+        guidance = f"⚠️ Action Required: Missing Information ({code})"
 
     footer = (
-        "🛠️ *Bot-Side Park:* You are NOT expected to answer. This posting is parked (max 1 alert / 24h) and becomes retryable once fixed."
+        "🛠️ Bot-Side Park: You are NOT expected to answer. This posting is parked (max 1 alert / 24h) and becomes retryable once fixed."
         if code in BOT_SIDE_DEFECT_CODES
-        else "⏱️ *24-Hour Review Window:* Please provide the canonical answer or review directly in browser. Application is safely parked until your response."
+        else "⏱️ 24-Hour Review Window: Please provide the canonical answer or review directly in browser. Application is safely parked until your response."
     )
 
     msg = (
         f"{guidance}\n\n"
-        f"• *Company:* {company}\n"
-        f"• *Posting:* {url}\n\n"
-        f"*Question Verbatim:*\n`{question}`\n"
+        f"• Company: {company}\n"
+        f"• Posting: {url}\n\n"
+        f"Question Verbatim:\n{question}\n"
         f"{choices_str}\n"
         f"{footer}"
     )
