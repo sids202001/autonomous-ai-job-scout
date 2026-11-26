@@ -426,6 +426,106 @@ def solve_education_enrollment_question(
 
 
 # ============================================================================
+# General Current Visa / Immigration Status Yes-No Solver (profile.json driven)
+# ============================================================================
+
+_VISA_STATUS_TOKEN_PATTERNS: List[Tuple[str, str]] = [
+    ("stem_opt", r"\bstem[\s-]*opt\b"),
+    ("opt", r"\bopt\b"),
+    ("cpt", r"\bcpt\b"),
+    ("f1", r"\bf-?1\b"),
+    ("h1b", r"\bh-?1b1?\b"),
+    ("j1", r"\bj-?1\b"),
+    ("o1", r"\bo-?1[ab]?\b"),
+    ("l1", r"\bl-?1[ab]?\b"),
+    ("tn", r"\btn(?:\s+visa|\s+status)?\b"),
+    ("e3", r"\be-?3\b"),
+    ("e2", r"\be-?2\b"),
+    ("h4", r"\bh-?4(?:\s*ead)?\b"),
+    ("b1_b2", r"\bb-?[12]\b"),
+    ("daca", r"\bdaca\b"),
+    ("tps", r"\btps\b"),
+    ("us_citizen", r"\bu\.?s\.?\s*citizen\b|\bunited\s+states\s+citizen\b"),
+    ("green_card", r"\bgreen\s*card\b|\bpermanent\s+resident\b|\blawful\s+permanent\s+resident\b"),
+]
+
+
+def _extract_visa_status_codes(text: str) -> set:
+    if not text:
+        return set()
+    low = text.lower()
+    found = set()
+    for code, pat in _VISA_STATUS_TOKEN_PATTERNS:
+        if re.search(pat, low, re.IGNORECASE):
+            found.add(code)
+    return found
+
+
+def solve_current_visa_status_question(
+    question: str,
+    choices: Optional[List[str]] = None,
+    profile: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """
+    General current visa / immigration status yes-no rule driven by profile.json['compliance_and_eeo']['visa_status'].
+    - If a yes/no question asks about current visa/immigration status and names a status matching
+      profile.json visa_status (e.g. F-1 / OPT / STEM OPT) -> Yes.
+    - If it names a different status (e.g. H-1B, J-1, O-1, L-1, TN, CPT, U.S. citizen, green card)
+      not present in profile.json visa_status -> No.
+    - Never hijacks future sponsorship questions ('Will you require H-1B sponsorship?'),
+      'Which visa?' questions (Rule 5 -> H-1B), expiration dates, or non-boolean status dropdowns.
+    """
+    if not question:
+        return None
+    q = question.strip()
+    q_low = q.lower()
+
+    # Never hijack future sponsorship, "which/what visa", expiration, or visa refusal questions
+    if re.search(
+        r"\b(?:sponsor|sponsorship|will\s+you\s+(?:now\s+or\s+in\s+the\s+future\s+)?(?:require|need)|"
+        r"in\s+the\s+future|which\s+visa|what\s+visa|type\s+of\s+visa|visa\s+type|visa\s+category|"
+        r"expir|refused|denied)\b",
+        q_low,
+    ):
+        return None
+
+    # Only handle yes/no questions (free-text/boolean choices)
+    if choices and not _has_boolean_choices(choices):
+        return None
+
+    is_yesno_framing = bool(
+        re.search(r"\b(?:are\s+you|do\s+you|is\s+your)\b", q_low)
+        or (choices and _has_boolean_choices(choices))
+    )
+    has_current_status_cue = bool(
+        re.search(
+            r"\b(?:currently|presently)\s+(?:in|on|a|an|holding|have|under|authorized\s+(?:on|under))\b|"
+            r"\b(?:in|on)\s+(?:an?\s+)?(?:f-?1|h-?1b1?|j-?1|o-?1[ab]?|l-?1[ab]?|tn|e-?[23]|h-?4|opt|stem[\s-]*opt|cpt|daca|tps)\s*(?:visa|status|ead)?\b|"
+            r"\b(?:hold|have)\s+(?:an?\s+)?(?:current\s+)?(?:f-?1|h-?1b1?|j-?1|o-?1[ab]?|l-?1[ab]?|tn|e-?[23]|h-?4|opt|stem[\s-]*opt|cpt|daca|tps|green\s*card)\s*(?:visa|status|ead)?\b|"
+            r"\bare\s+you\s+(?:currently\s+)?(?:a\s+)?(?:u\.?s\.?\s*citizen|united\s+states\s+citizen|permanent\s+resident|green\s*card\s+holder)\b",
+            q_low,
+        )
+    )
+    if not (is_yesno_framing and has_current_status_cue):
+        return None
+
+    asked_codes = _extract_visa_status_codes(q_low)
+    if not asked_codes:
+        return None
+
+    prof = profile if isinstance(profile, dict) else _load_profile_safe()
+    comp = prof.get("compliance_and_eeo") or {}
+    profile_visa = str(comp.get("visa_status") or "").strip()
+    owned_codes = _extract_visa_status_codes(profile_visa)
+    if comp.get("is_us_person") is True or str(comp.get("citizenship") or "").strip().lower() in ("us", "usa", "united states"):
+        owned_codes.add("us_citizen")
+
+    if asked_codes.intersection(owned_codes):
+        return _pick_choice_yes(q, choices)
+    return _pick_choice_no(q, choices)
+
+
+# ============================================================================
 # Unified Conditional Follow-Up Matcher & Solver (Not-Applicable / False Parent)
 # ============================================================================
 
@@ -778,6 +878,11 @@ def solve_canonical_screening_question(
     edu_ans = solve_education_enrollment_question(q, choices)
     if edu_ans is not None:
         return edu_ans
+
+    # 4c2. Current visa / immigration status yes-no questions (driven by profile.json['compliance_and_eeo']['visa_status'])
+    visa_status_ans = solve_current_visa_status_question(q, choices)
+    if visa_status_ans is not None:
+        return visa_status_ans
 
     # 4d. Conditional follow-up fields whose parent condition is false/not-applicable
     #     (optional -> "" / skip; required -> "N/A"; never halts)

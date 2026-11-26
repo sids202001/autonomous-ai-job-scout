@@ -26,6 +26,7 @@ from app.services.form_guards import (
     FormHaltException,
     is_conditional_followup_question,
     solve_conditional_followup,
+    solve_current_visa_status_question,
     solve_education_enrollment_question,
     solve_canonical_screening_question,
 )
@@ -167,6 +168,53 @@ class TestGeneralConditionalAndEducationRules(unittest.TestCase):
             DeterministicEngine.solve("What university did you attend?", None, is_required=True),
             "George Mason University",
         )
+
+    # --- 2b. General current-visa-status yes/no rule (profile.json visa_status driven) ---
+    def test_current_visa_status_yes_no_rule_general(self):
+        # Matching current status in profile.json ("F-1 OPT (STEM Eligible)") -> Yes
+        matching_questions = [
+            "Are you currently in F-1 status?",
+            "Are you currently on an F-1 visa?",
+            "Are you currently on F-1 OPT?",
+            "Are you currently working on STEM OPT?",
+            "Do you currently hold F-1 status?",
+            "Are you currently on F-1 or J-1 status?",
+        ]
+        for q in matching_questions:
+            self.assertEqual(solve_current_visa_status_question(q, ["Yes", "No"]), "Yes", f"Expected Yes for: {q}")
+            self.assertEqual(DeterministicEngine.solve(q, ["Yes", "No"], is_required=True), "Yes", f"Expected Yes for: {q}")
+
+        # Non-matching current statuses -> No
+        non_matching_questions = [
+            "Are you currently in H-1B status?",
+            "Do you currently hold an H-1B visa?",
+            "Are you currently in J-1 status?",
+            "Are you currently on an O-1 visa?",
+            "Do you currently hold an L-1 visa?",
+            "Are you currently on TN status?",
+            "Are you currently on CPT?",
+            "Are you currently a U.S. citizen?",
+            "Are you currently a permanent resident or green card holder?",
+        ]
+        for q in non_matching_questions:
+            self.assertEqual(solve_current_visa_status_question(q, ["Yes", "No"]), "No", f"Expected No for: {q}")
+            self.assertEqual(DeterministicEngine.solve(q, ["Yes", "No"], is_required=True), "No", f"Expected No for: {q}")
+
+        # Must NOT hijack future sponsorship or Rule 5 "Which visa?" questions
+        self.assertEqual(
+            DeterministicEngine.solve("Will you now or in the future require H-1B visa sponsorship?", ["Yes", "No"], is_required=True),
+            "Yes",
+        )
+        self.assertEqual(
+            DeterministicEngine.solve("Which visa will you require in the future?", ["H-1B", "TN", "O-1"], is_required=True),
+            "H-1B",
+        )
+        # Passes PRESUBMIT_REVIEW for "Are you currently in F-1 status?" -> "Yes"
+        res = run_presubmit_review(
+            [{"label": "Are you currently in F-1 status?", "value": "Yes", "type": "radio", "required": True}],
+            profile=load_profile(),
+        )
+        self.assertTrue(res["passed"], f"Expected PASS, got failures: {res['failures']}")
 
     # --- 3. Non-required unknown fields skip, required unknown fields still halt ---
     def test_optional_unknown_skips_and_required_unknown_still_halts(self):
